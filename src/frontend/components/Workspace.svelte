@@ -78,6 +78,7 @@
     };
     let scheduleEntry = $derived($taskStore.myDayState?.tasks.find((entry) => entry.blockId === scheduleTask?.blockId));
     let catalog = $derived($session.catalog);
+    let mobileActionsOpen = $state(false);
     let root: HTMLDivElement;
     let createOptions = $state<{ parentTask: TaskCacheEntry | null; initialActionKind: "action" | "stage" } | null>(
         null,
@@ -457,8 +458,14 @@
                     />{/if}
                 <h1>{catalog ? i18n.allViews : activeViewMeta.label}</h1>
                 <NaIconButton symbol="iconAdd" label={i18n.createTask} onclick={() => openCreate()} />
-                <NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />
-                {#if !touch}<NaIconButton symbol="iconList" label={i18n.allViews} onclick={showCatalog} />{/if}
+                {#if !touch}<NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />{/if}
+                {#if touch}<NaIconButton symbol="iconMore" label="更多" onclick={() => (mobileActionsOpen = !mobileActionsOpen)} />{/if}
+                {#if touch && mobileActionsOpen}
+                    <div class="na-mobile-actions" role="menu">
+                        <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; void handleRefresh(); }}>{i18n.refreshTasks}</button>
+                        <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; showCatalog(); }}>{i18n.allViews}</button>
+                    </div>
+                {/if}
             </div>
             {#if !touch}<CompactNavigation
                     {i18n}

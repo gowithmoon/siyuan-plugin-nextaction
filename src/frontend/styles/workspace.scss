@@ -111,7 +111,36 @@
     --na-control-height-sm: 44px;
     font-size: 16px;
     .na-workspace__header {
+        position: relative;
         padding: 8px 12px;
+    }
+    .na-mobile-actions {
+        position: absolute;
+        z-index: 20;
+        top: calc(100% - 4px);
+        right: 8px;
+        min-width: 144px;
+        padding: 4px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: var(--na-radius-sm, 6px);
+        background: var(--b3-theme-surface);
+        box-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+    }
+    .na-mobile-actions button {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 12px;
+        border: 0;
+        border-radius: var(--na-radius-sm, 6px);
+        background: transparent;
+        color: var(--na-text-primary);
+        font: inherit;
+        text-align: start;
+    }
+    .na-mobile-actions button:hover,
+    .na-mobile-actions button:focus-visible {
+        background: var(--b3-list-hover);
     }
     .na-workspace__header h1 {
         font-size: 18px;
