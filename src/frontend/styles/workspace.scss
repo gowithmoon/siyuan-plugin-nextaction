@@ -110,6 +110,28 @@
     --na-control-height: 44px;
     --na-control-height-sm: 44px;
     font-size: 16px;
+    .na-toolbar,
+    .na-task-filter-bar {
+        flex-wrap: nowrap;
+        gap: 6px;
+        padding: 4px 12px;
+        min-height: 52px;
+        box-sizing: border-box;
+    }
+    .na-task-filter-bar__search {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .na-task-filter-bar__filters {
+        flex: none;
+        flex-wrap: nowrap;
+        overflow: visible;
+        margin-left: 0;
+    }
+    .na-toolbar__main {
+        flex-wrap: nowrap;
+        overflow: hidden;
+    }
     .na-workspace__header {
         position: relative;
         padding: 8px 12px;
