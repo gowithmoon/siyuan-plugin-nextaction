@@ -57,6 +57,9 @@
     let previewOffsetX: number = $state(0);
     let isDragging: boolean = $state(false);
     let suppressClick = false;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressActive = false;
+    let lastTapAt = 0;
 
     let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
     let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
@@ -93,6 +96,10 @@
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
         if (e.pointerType !== "touch" && e.button !== 0) return;
         e.stopPropagation();
+        if (workspace?.touch) {
+            longPressActive = false;
+            longPressTimer = setTimeout(() => { longPressActive = true; }, 420);
+        }
         dragMode = mode;
         pointerId = e.pointerId;
         originClientY = e.clientY;
@@ -151,8 +158,16 @@
         if (dragMode === "none") return;
         const currentMode = dragMode;
         dragMode = "none";
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 
         if (!isDragging && workspace?.touch) {
+            if (!longPressActive) {
+                const now = Date.now();
+                if (now - lastTapAt < 320) workspace.openTask?.(task);
+                else openQuickMenu(e);
+                lastTapAt = now;
+            }
+            longPressActive = false;
             isDragging = false;
             return;
         }
@@ -211,6 +226,7 @@
     }
 
     function handleContextMenu(event: MouseEvent): void {
+        if (workspace?.touch) { event.preventDefault(); return; }
         event.preventDefault();
         onContextMenu(task, event);
     }
@@ -233,8 +249,7 @@
     class="na-timeline-card {priorityClass}"
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
-        if (suppressClick) { suppressClick = false; return; }
-        if (workspace?.touch) openQuickMenu(event);
+        if (workspace?.touch) { event.preventDefault(); return; }
     }}
     ondblclick={(event) => {
         if (!workspace?.touch) return;
