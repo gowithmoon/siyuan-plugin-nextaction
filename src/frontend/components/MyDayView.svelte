@@ -226,21 +226,6 @@
     .na-myday-add {
         padding: 8px 12px;
     }
-    .na-myday-schedule-row {
-        display: flex;
-        align-items: center;
-        padding: 4px 12px;
-    }
-    .na-myday-schedule-row button {
-        flex: 1;
-        text-align: start;
-        min-height: 44px;
-        border: 0;
-        background: transparent;
-        color: var(--na-text-primary);
-        font: inherit;
-    }
-
     .na-view--myday {
         --na-myday-panel-bg: var(--b3-theme-surface);
         --na-myday-panel-border: var(--na-task-card-border, var(--b3-border-color));
