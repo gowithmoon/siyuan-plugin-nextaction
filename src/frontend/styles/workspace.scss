@@ -102,6 +102,9 @@
     }
 }
 .na-workspace--touch {
+    .na-app__list { overflow-y: auto; overscroll-behavior-y: contain; touch-action: pan-y; }
+    .na-task-list { touch-action: pan-y; }
+    .na-project-toolbar .na-button, .na-project-toolbar .na-input, .na-project-toolbar select { min-height: 36px; height: 36px; font-size: 12px; }
     --na-font-size-xs: 11px;
     --na-font-size-sm: 12px;
     --na-font-size-md: 14px;
@@ -331,8 +334,12 @@
         box-sizing: border-box;
     }
     .na-accordion__trigger {
-        min-height: 44px;
+        display: none;
     }
+    .na-myday-add { padding: 4px 8px; }
+    .na-myday-add .na-search-select { min-height: 36px; }
+    .na-view--myday .na-toolbar { min-height: 40px; padding: 2px 8px; }
+    .na-view--myday .na-toolbar__actions-content { gap: 4px; }
 }
 
 .na-workspace--touch .na-create-task {

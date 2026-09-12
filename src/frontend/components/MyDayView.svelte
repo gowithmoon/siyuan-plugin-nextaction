@@ -172,7 +172,7 @@
                     />
                 </div>{/if}
             <NaToolbar>
-                <NaMetricStrip items={summaryItems} />
+                {#if !touch}<NaMetricStrip items={summaryItems} />{/if}
                 <div class="na-toolbar__actions-content">
                     <NaButton size="sm" icon="iconSparkles" onclick={runAiPlanMyDay}
                         >{i18n?.aiPlanMyDay || "自动规划"}</NaButton
@@ -201,7 +201,7 @@
                     onChange={handleFilterChange}
                 />{/if}
         {/snippet}
-        {#if compact && viewMode === "timeline"}
+        {#if compact && !touch && viewMode === "timeline"}
             <NaAccordion title={i18n.dayScheduleList} count={scheduledCount} open={false}>
                 {#each [...myDayEntries]
                     .filter((entry) => entry.scheduleStart !== null)
