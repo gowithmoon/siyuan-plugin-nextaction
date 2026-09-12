@@ -335,11 +335,20 @@
     }
     .na-accordion__trigger { min-height: 36px; }
     .na-myday-add { padding: 2px 0; flex: 1 1 0; min-width: 0; }
-    .na-myday-add .na-search-select { min-height: 36px; }
+    .na-myday-add .na-search-select,
+    .na-myday-add .na-search-select__box { height: 32px; min-height: 32px; }
+    .na-myday-add .na-search-select__input { font-size: 12px !important; }
     .na-view--myday .na-toolbar { min-height: 40px; padding: 2px 8px; }
     .na-view--myday .na-toolbar__actions-content { gap: 4px; flex: 0 0 auto; }
     .na-view--myday .na-toolbar__actions-content .na-button,
-    .na-view--myday .na-toolbar__actions-content .na-segment-control { min-height: 32px; height: 32px; }
+    .na-view--myday .na-toolbar__actions-content .na-segment-control,
+    .na-view--myday .na-toolbar__actions-content .na-segment-control__option {
+        min-height: 32px;
+        height: 32px;
+        box-sizing: border-box;
+    }
+    .na-view--myday .na-toolbar__actions-content .na-button { padding-inline: 8px; font-size: 12px; }
+    .na-view--myday .na-toolbar__actions-content .na-segment-control__option { padding-inline: 7px; font-size: 11px; }
     .na-unscheduled__list { padding: 6px; touch-action: pan-y; }
     .na-unscheduled-card {
         grid-template-columns: 3px minmax(0, 1fr) 36px;
