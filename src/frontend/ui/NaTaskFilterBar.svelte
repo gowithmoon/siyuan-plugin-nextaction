@@ -221,7 +221,7 @@
     {/if}
 </div>
 {#if filterOpen}
-    <NaPageHost title={i18n.filterAndSort} backLabel={i18n.cancel} onBack={() => (filterOpen = false)}>
+    <NaPageHost title={i18n.filterAndSort} backLabel={i18n.cancel} mode="sheet" onBack={() => (filterOpen = false)}>
         {#snippet actions()}<NaButton
                 variant="primary"
                 onclick={() => {

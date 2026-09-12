@@ -19,10 +19,11 @@
         backLabel: string;
         onBack: () => void;
         chrome?: boolean;
+        mode?: "page" | "sheet";
         children: Snippet;
         actions?: Snippet;
     }
-    let { title, backLabel, onBack, chrome = true, children, actions = undefined }: Props = $props();
+    let { title, backLabel, onBack, chrome = true, mode = "page", children, actions = undefined }: Props = $props();
     let element: HTMLDivElement;
     onMount(() => {
         const previous = document.activeElement as HTMLElement | null;
@@ -76,6 +77,7 @@
 
 <div
     class="na-page-host"
+    class:na-page-host--sheet={mode === "sheet"}
     bind:this={element}
     role="dialog"
     aria-modal="true"
@@ -126,5 +128,38 @@
         min-height: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
+    }
+    .na-page-host--sheet {
+        inset: auto 0 0;
+        max-height: min(78dvh, 720px);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 32px rgb(0 0 0 / 22%);
+    }
+    .na-page-host--sheet::before {
+        content: "";
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 36px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--b3-border-color);
+        transform: translateX(-50%);
+    }
+    .na-page-host--sheet .na-page-host__header {
+        padding-top: 16px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .na-page-host--sheet {
+            animation: na-sheet-in 180ms ease-out;
+        }
+        @keyframes na-sheet-in {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
     }
 </style>
