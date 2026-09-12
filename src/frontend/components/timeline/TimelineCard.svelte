@@ -56,6 +56,7 @@
     let originClientX: number = 0;
     let previewOffsetX: number = $state(0);
     let isDragging: boolean = $state(false);
+    let suppressClick = false;
 
     let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
     let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
@@ -90,7 +91,7 @@
     let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
-        if (workspace?.touch || e.pointerType === "touch" || e.button !== 0) return;
+        if (e.pointerType !== "touch" && e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
         dragMode = mode;
@@ -165,6 +166,7 @@
             return;
         }
 
+        suppressClick = true;
         isDragging = false;
 
         const elUnderPointer = document.elementFromPoint(e.clientX, e.clientY);
@@ -209,7 +211,13 @@
     class="na-timeline-card {priorityClass}"
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
-        if (workspace?.touch || ("pointerType" in event && event.pointerType === "touch")) workspace?.openTask?.(task);
+        if (suppressClick) { suppressClick = false; return; }
+        if (!workspace?.touch && !("pointerType" in event && event.pointerType === "touch")) return;
+    }}
+    ondblclick={(event) => {
+        if (!workspace?.touch) return;
+        event.preventDefault();
+        workspace.openTask?.(task);
     }}
     class:na-timeline-card--dragging={isDragging}
     class:na-timeline-card--removing={isRemoving}
@@ -271,7 +279,7 @@
 
 <style lang="scss">
     .na-timeline-card--touch {
-        touch-action: pan-y !important;
+        touch-action: none !important;
     }
     .na-timeline-card--touch .na-timeline-card__handle {
         display: none;
