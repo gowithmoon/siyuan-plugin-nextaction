@@ -340,6 +340,21 @@
     .na-myday-add .na-search-select { min-height: 36px; }
     .na-view--myday .na-toolbar { min-height: 40px; padding: 2px 8px; }
     .na-view--myday .na-toolbar__actions-content { gap: 4px; }
+    .na-unscheduled__list { padding: 6px; touch-action: pan-y; }
+    .na-unscheduled-card {
+        grid-template-columns: 3px minmax(0, 1fr) 36px;
+        align-items: center;
+        min-height: 52px;
+        padding: 5px 4px 5px 0;
+        margin-bottom: 5px;
+        gap: 1px 6px;
+    }
+    .na-unscheduled-card__accent { grid-column: 1; grid-row: 1 / span 2; }
+    .na-unscheduled-card__name { grid-column: 2; grid-row: 1; font-size: 13px; line-height: 18px; }
+    .na-unscheduled-card__meta { grid-column: 2; grid-row: 2; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+    .na-unscheduled-card__context { display: none; }
+    .na-unscheduled-card .na-icon-button { grid-column: 3; grid-row: 1 / span 2; width: 36px; height: 36px; }
+    .na-unscheduled-card__due { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
 
 .na-workspace--touch .na-create-task {
