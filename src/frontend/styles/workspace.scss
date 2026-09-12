@@ -198,25 +198,62 @@
         min-height: 44px;
     }
     .na-task-card {
-        height: auto;
-        min-height: 64px;
+        height: 60px;
+        min-height: 60px;
         max-height: none;
         flex-basis: auto;
-        padding: 8px 12px;
+        padding: 6px 10px;
     }
     .na-task-card__title {
         font-size: 16px;
-        line-height: 1.5;
-        white-space: normal;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        line-height: 18px;
+        white-space: nowrap;
     }
     .na-task-card__meta {
         font-size: 13px;
-        flex-wrap: wrap;
+        margin-top: 1px;
+        height: 15px;
     }
+    .na-task-card__context,
+    .na-task-card__tags,
+    .na-task-card__custom-field,
+    .na-task-card__child-count,
+    .na-task-card__stats {
+        display: none;
+    }
+    .na-mobile-view-picker {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+    }
+    .na-mobile-view-picker__scrim {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        border: 0;
+        background: rgb(0 0 0 / 28%);
+    }
+    .na-mobile-view-picker__sheet {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        max-height: 82dvh;
+        overflow: auto;
+        padding-bottom: env(safe-area-inset-bottom);
+        border-radius: 14px 14px 0 0;
+        background: var(--b3-theme-surface);
+        box-shadow: 0 -8px 24px rgb(0 0 0 / 16%);
+    }
+    .na-mobile-view-picker__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px 4px;
+    }
+    .na-mobile-view-picker__header h2 { margin: 0; font-size: 18px; }
+    .na-mobile-view-picker .na-view-directory { height: auto; padding: 4px 12px 16px; }
+    .na-mobile-view-picker .na-view-directory h2 { margin-top: 12px; }
     .na-task-card__actions {
         padding-left: 0;
     }

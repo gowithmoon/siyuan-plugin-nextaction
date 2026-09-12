@@ -79,6 +79,7 @@
     let scheduleEntry = $derived($taskStore.myDayState?.tasks.find((entry) => entry.blockId === scheduleTask?.blockId));
     let catalog = $derived($session.catalog);
     let mobileActionsOpen = $state(false);
+    let mobileViewPickerOpen = $state(false);
     let root: HTMLDivElement;
     let createOptions = $state<{ parentTask: TaskCacheEntry | null; initialActionKind: "action" | "stage" } | null>(
         null,
@@ -95,10 +96,18 @@
         session.back();
     }
     function showCatalog() {
+        if (touch) {
+            mobileViewPickerOpen = true;
+            mobileActionsOpen = false;
+            return;
+        }
         session.openCatalog();
     }
     function resumeCatalog() {
         session.resumeCatalog();
+    }
+    function closeMobileViewPicker() {
+        mobileViewPickerOpen = false;
     }
     function handleKeydown(event: KeyboardEvent) {
         if (!compact || event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
@@ -463,7 +472,7 @@
                 {#if touch && mobileActionsOpen}
                     <div class="na-mobile-actions" role="menu">
                         <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; void handleRefresh(); }}>{i18n.refreshTasks}</button>
-                        <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; showCatalog(); }}>{i18n.allViews}</button>
+                        <button type="button" role="menuitem" onclick={showCatalog}>{i18n.allViews}</button>
                     </div>
                 {/if}
             </div>
@@ -601,8 +610,27 @@
             {catalog}
             bottom
             onSwitch={switchView}
-            onCatalog={resumeCatalog}
+            onCatalog={showCatalog}
         />{/if}
+    {#if touch && mobileViewPickerOpen}
+        <div class="na-mobile-view-picker" role="dialog" aria-modal="true" aria-label={i18n.allViews}>
+            <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}></button>
+            <div class="na-mobile-view-picker__sheet">
+                <div class="na-mobile-view-picker__header">
+                    <h2>{i18n.allViews}</h2>
+                    <NaIconButton symbol="iconClose" label={i18n.cancel} onclick={closeMobileViewPicker} />
+                </div>
+                <CompactNavigation
+                    {i18n}
+                    {activeView}
+                    catalog={false}
+                    directoryOnly
+                    onSwitch={(view) => { closeMobileViewPicker(); switchView(view); }}
+                    onCatalog={closeMobileViewPicker}
+                />
+            </div>
+        </div>
+    {/if}
     {#if scheduleTask && scheduleEntry}<NaMyDayScheduleEditor
             task={scheduleTask}
             entry={scheduleEntry}
