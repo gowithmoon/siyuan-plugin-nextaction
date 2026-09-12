@@ -142,6 +142,10 @@
         const currentMode = dragMode;
         dragMode = "none";
 
+        if (!isDragging && workspace?.touch) {
+            isDragging = false;
+            return;
+        }
         if (!isDragging) {
             showTaskQuickMenu(
                 task,
@@ -201,6 +205,14 @@
         onContextMenu(task, event);
     }
 
+    function openQuickMenu(event: MouseEvent) {
+        showTaskQuickMenu(task, event.clientX, event.clientY, bridge, i18n, {
+            onScheduleRemoved: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+            onTaskUpdated: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
+            onRemovedFromMyDay: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+        }, isDone);
+    }
+
     function handleResizePointerDown(event: PointerEvent, mode: "resize-start" | "resize-end"): void {
         event.stopPropagation();
         handlePointerDown(event, mode);
@@ -212,7 +224,7 @@
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
         if (suppressClick) { suppressClick = false; return; }
-        if (!workspace?.touch && !("pointerType" in event && event.pointerType === "touch")) return;
+        if (workspace?.touch) openQuickMenu(event);
     }}
     ondblclick={(event) => {
         if (!workspace?.touch) return;
