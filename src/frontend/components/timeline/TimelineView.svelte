@@ -98,7 +98,7 @@
                     onDrop={handleDropOnUnscheduled}
                 />
             {/snippet}
-            {#if compact}<NaAccordion title={i18n.unscheduled} count={unscheduledEntries.length} open={true}
+            {#if compact}<NaAccordion title={i18n.unscheduled} count={unscheduledEntries.length} open={false}
                     >{@render unscheduledContent()}</NaAccordion
                 >{:else}{@render unscheduledContent()}{/if}
         </div>
@@ -155,10 +155,28 @@
         flex-direction: column;
     }
 
-    .na-timeline-view--compact .na-timeline-view__top {
-        height: auto;
-        max-height: 40%;
+    /* Narrow/mobile layouts keep the schedule as the primary workspace. */
+    .na-timeline-view--narrow .na-timeline-view__top {
+        order: 2;
+        max-height: 30%;
         overflow-y: auto;
+    }
+
+    .na-timeline-view--narrow .na-timeline-view__bottom {
+        order: 1;
+        min-height: 0;
+    }
+
+    .na-timeline-view--compact .na-timeline-view__top {
+        order: 2;
+        height: auto;
+        max-height: 30%;
+        overflow-y: auto;
+    }
+
+    .na-timeline-view--compact .na-timeline-view__bottom {
+        order: 1;
+        min-height: 0;
     }
     .na-timeline-view__left {
         width: 236px;
