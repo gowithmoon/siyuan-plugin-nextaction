@@ -480,7 +480,6 @@
                 {#if touch && mobileActionsOpen}
                     <div class="na-mobile-actions" role="menu">
                         <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; void handleRefresh(); }}>{i18n.refreshTasks}</button>
-                        <button type="button" role="menuitem" onclick={showCatalog}>{i18n.allViews}</button>
                     </div>
                 {/if}
             </div>
