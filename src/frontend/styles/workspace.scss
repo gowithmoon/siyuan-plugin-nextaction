@@ -333,13 +333,13 @@
         height: max(320px, 55dvh);
         box-sizing: border-box;
     }
-    .na-accordion__trigger {
-        display: none;
-    }
-    .na-myday-add { padding: 4px 8px; }
+    .na-accordion__trigger { min-height: 36px; }
+    .na-myday-add { padding: 2px 0; flex: 1 1 0; min-width: 0; }
     .na-myday-add .na-search-select { min-height: 36px; }
     .na-view--myday .na-toolbar { min-height: 40px; padding: 2px 8px; }
-    .na-view--myday .na-toolbar__actions-content { gap: 4px; }
+    .na-view--myday .na-toolbar__actions-content { gap: 4px; flex: 0 0 auto; }
+    .na-view--myday .na-toolbar__actions-content .na-button,
+    .na-view--myday .na-toolbar__actions-content .na-segment-control { min-height: 32px; height: 32px; }
     .na-unscheduled__list { padding: 6px; touch-action: pan-y; }
     .na-unscheduled-card {
         grid-template-columns: 3px minmax(0, 1fr) 36px;

@@ -98,7 +98,7 @@
                     onDrop={handleDropOnUnscheduled}
                 />
             {/snippet}
-            {#if compact}<NaAccordion title={i18n.unscheduled} count={unscheduledEntries.length} open={false}
+            {#if compact}<NaAccordion title={i18n.unscheduled} count={unscheduledEntries.length} open={true}
                     >{@render unscheduledContent()}</NaAccordion
                 >{:else}{@render unscheduledContent()}{/if}
         </div>

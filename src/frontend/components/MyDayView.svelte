@@ -161,6 +161,7 @@
         scrollMode="none"
     >
         {#snippet toolbar()}
+            <NaToolbar>
             {#if compact}<div class="na-myday-add">
                     <NaSearchSelect
                         bind:selected={addSelection}
@@ -171,7 +172,6 @@
                         onChange={addToDay}
                     />
                 </div>{/if}
-            <NaToolbar>
                 {#if !workspace?.touch}<NaMetricStrip items={summaryItems} />{/if}
                 <div class="na-toolbar__actions-content">
                     <NaButton size="sm" icon="iconSparkles" onclick={runAiPlanMyDay}
@@ -201,22 +201,6 @@
                     onChange={handleFilterChange}
                 />{/if}
         {/snippet}
-        {#if compact && !workspace?.touch && viewMode === "timeline"}
-            <NaAccordion title={i18n.dayScheduleList} count={scheduledCount} open={false}>
-                {#each [...myDayEntries]
-                    .filter((entry) => entry.scheduleStart !== null)
-                    .sort((a, b) => a.scheduleStart! - b.scheduleStart!) as entry (entry.blockId)}
-                    {@const task = $taskStore.allTasks.find((item) => item.blockId === entry.blockId)}
-                    {#if task}<div class="na-myday-schedule-row">
-                            <button onclick={() => onEdit(task)}>{task.title}</button><NaIconButton
-                                symbol="iconCalendar"
-                                label={i18n.scheduleTask}
-                                onclick={() => workspace?.openSchedule?.(task)}
-                            />
-                        </div>{/if}
-                {/each}
-            </NaAccordion>
-        {/if}
         {#if viewMode === "timeline"}
             <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
         {:else}
