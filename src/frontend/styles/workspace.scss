@@ -102,9 +102,21 @@
     }
 }
 .na-workspace--touch {
-    .na-app__list { overflow-y: auto; overscroll-behavior-y: contain; touch-action: pan-y; }
-    .na-task-list { touch-action: pan-y; }
-    .na-project-toolbar .na-button, .na-project-toolbar .na-input, .na-project-toolbar select { min-height: 36px; height: 36px; font-size: 12px; }
+    .na-app__list {
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        touch-action: pan-y;
+    }
+    .na-task-list {
+        touch-action: pan-y;
+    }
+    .na-project-toolbar .na-button,
+    .na-project-toolbar .na-input,
+    .na-project-toolbar select {
+        min-height: 36px;
+        height: 36px;
+        font-size: 12px;
+    }
     --na-font-size-xs: 11px;
     --na-font-size-sm: 12px;
     --na-font-size-md: 14px;
@@ -203,26 +215,43 @@
         min-height: 36px;
     }
     .na-task-card {
-        height: 54px;
-        min-height: 54px;
+        height: auto;
+        min-height: 72px;
         max-height: none;
         flex-basis: auto;
-        padding: 4px 8px;
+        padding: 8px 8px;
+    }
+    .na-task-card__content {
+        min-height: 54px;
+        align-items: flex-start;
+    }
+    .na-task-card__body {
+        min-height: 48px;
+    }
+    .na-task-card__title-row {
+        align-items: flex-start;
+        min-height: 36px;
+    }
+    .na-task-card__title-composite {
+        display: -webkit-box;
+        white-space: normal;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
     .na-task-card__title {
         font-size: 14px;
-        line-height: 18px;
-        white-space: nowrap;
+        line-height: 19px;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        text-overflow: ellipsis;
     }
     .na-task-card__meta {
         font-size: 11px;
-        margin-top: 1px;
-        height: 15px;
+        margin-top: 3px;
+        height: 16px;
     }
-    .na-task-card__context,
-    .na-task-card__tags,
-    .na-task-card__custom-field,
-    .na-task-card__child-count,
     .na-task-card__stats {
         display: none;
     }
@@ -256,9 +285,17 @@
         justify-content: space-between;
         padding: 10px 12px 4px;
     }
-    .na-mobile-view-picker__header h2 { margin: 0; font-size: 18px; }
-    .na-mobile-view-picker .na-view-directory { height: auto; padding: 4px 12px 16px; }
-    .na-mobile-view-picker .na-view-directory h2 { margin-top: 12px; }
+    .na-mobile-view-picker__header h2 {
+        margin: 0;
+        font-size: 18px;
+    }
+    .na-mobile-view-picker .na-view-directory {
+        height: auto;
+        padding: 4px 12px 16px;
+    }
+    .na-mobile-view-picker .na-view-directory h2 {
+        margin-top: 12px;
+    }
     .na-task-card__actions {
         padding-left: 0;
     }
@@ -333,13 +370,30 @@
         height: max(320px, 55dvh);
         box-sizing: border-box;
     }
-    .na-accordion__trigger { min-height: 36px; }
-    .na-myday-add { padding: 2px 0; flex: 1 1 0; min-width: 0; }
+    .na-accordion__trigger {
+        min-height: 36px;
+    }
+    .na-myday-add {
+        padding: 2px 0;
+        flex: 1 1 0;
+        min-width: 0;
+    }
     .na-myday-add .na-search-select,
-    .na-myday-add .na-search-select__box { height: 32px; min-height: 32px; }
-    .na-myday-add .na-search-select__input { font-size: 12px !important; }
-    .na-view--myday .na-toolbar { min-height: 40px; padding: 2px 8px; }
-    .na-view--myday .na-toolbar__actions-content { gap: 4px; flex: 0 0 auto; }
+    .na-myday-add .na-search-select__box {
+        height: 32px;
+        min-height: 32px;
+    }
+    .na-myday-add .na-search-select__input {
+        font-size: 12px !important;
+    }
+    .na-view--myday .na-toolbar {
+        min-height: 40px;
+        padding: 2px 8px;
+    }
+    .na-view--myday .na-toolbar__actions-content {
+        gap: 4px;
+        flex: 0 0 auto;
+    }
     .na-view--myday .na-toolbar__actions-content .na-button,
     .na-view--myday .na-toolbar__actions-content .na-segment-control,
     .na-view--myday .na-toolbar__actions-content .na-segment-control__option {
@@ -347,9 +401,18 @@
         height: 32px;
         box-sizing: border-box;
     }
-    .na-view--myday .na-toolbar__actions-content .na-button { padding-inline: 8px; font-size: 12px; }
-    .na-view--myday .na-toolbar__actions-content .na-segment-control__option { padding-inline: 7px; font-size: 11px; }
-    .na-unscheduled__list { padding: 6px; touch-action: pan-y; }
+    .na-view--myday .na-toolbar__actions-content .na-button {
+        padding-inline: 8px;
+        font-size: 12px;
+    }
+    .na-view--myday .na-toolbar__actions-content .na-segment-control__option {
+        padding-inline: 7px;
+        font-size: 11px;
+    }
+    .na-unscheduled__list {
+        padding: 6px;
+        touch-action: pan-y;
+    }
     .na-unscheduled-card {
         grid-template-columns: 3px minmax(0, 1fr) 36px;
         align-items: center;
@@ -358,12 +421,37 @@
         margin-bottom: 5px;
         gap: 1px 6px;
     }
-    .na-unscheduled-card__accent { grid-column: 1; grid-row: 1 / span 2; }
-    .na-unscheduled-card__name { grid-column: 2; grid-row: 1; font-size: 13px; line-height: 18px; }
-    .na-unscheduled-card__meta { grid-column: 2; grid-row: 2; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
-    .na-unscheduled-card__context { display: none; }
-    .na-unscheduled-card .na-icon-button { grid-column: 3; grid-row: 1 / span 2; width: 36px; height: 36px; }
-    .na-unscheduled-card__due { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .na-unscheduled-card__accent {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+    .na-unscheduled-card__name {
+        grid-column: 2;
+        grid-row: 1;
+        font-size: 13px;
+        line-height: 18px;
+    }
+    .na-unscheduled-card__meta {
+        grid-column: 2;
+        grid-row: 2;
+        min-width: 0;
+        flex-wrap: nowrap;
+        overflow: hidden;
+    }
+    .na-unscheduled-card__context {
+        display: none;
+    }
+    .na-unscheduled-card .na-icon-button {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+        width: 36px;
+        height: 36px;
+    }
+    .na-unscheduled-card__due {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }
 
 .na-workspace--touch .na-create-task {
