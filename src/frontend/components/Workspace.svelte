@@ -88,6 +88,14 @@
     let parentDetail: TaskCacheEntry | null = null;
     let projectComponent: ProjectView | null = $state(null);
     function back() {
+        if (mobileViewPickerOpen) {
+            mobileViewPickerOpen = false;
+            return;
+        }
+        if (mobileActionsOpen) {
+            mobileActionsOpen = false;
+            return;
+        }
         if (touch && selectedTask) {
             void requestDetailClose();
             return;
@@ -457,7 +465,7 @@
 >
     {#if !compact}<NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />{/if}
 
-    <div class="na-app__center">
+    <div class="na-app__center" inert={touch && (mobileViewPickerOpen || mobileActionsOpen || selectedTask !== null || createOptions !== null) ? true : undefined}>
         {#if compact}
             <div class="na-workspace__header">
                 {#if $session.canBack && !catalog}<NaIconButton
@@ -604,14 +612,16 @@
         </div>
     </div>
 
-    {#if touch}<CompactNavigation
+    {#if touch}<div inert={mobileViewPickerOpen || selectedTask !== null || createOptions !== null ? true : undefined}>
+        <CompactNavigation
             {i18n}
             {activeView}
             {catalog}
             bottom
             onSwitch={switchView}
             onCatalog={showCatalog}
-        />{/if}
+        />
+    </div>{/if}
     {#if touch && mobileViewPickerOpen}
         <div class="na-mobile-view-picker" role="dialog" aria-modal="true" aria-label={i18n.allViews}>
             <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}></button>
