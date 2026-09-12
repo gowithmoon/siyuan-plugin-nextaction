@@ -102,14 +102,14 @@
     }
 }
 .na-workspace--touch {
-    --na-font-size-xs: 12px;
-    --na-font-size-sm: 13px;
-    --na-font-size-md: 16px;
-    --na-font-size-lg: 16px;
-    --na-font-size-xl: 18px;
+    --na-font-size-xs: 11px;
+    --na-font-size-sm: 12px;
+    --na-font-size-md: 14px;
+    --na-font-size-lg: 15px;
+    --na-font-size-xl: 17px;
     --na-control-height: 44px;
     --na-control-height-sm: 44px;
-    font-size: 16px;
+    font-size: 14px;
     .na-toolbar,
     .na-task-filter-bar {
         flex-wrap: nowrap;
@@ -119,7 +119,7 @@
         box-sizing: border-box;
     }
     .na-task-filter-bar__search {
-        flex: 1 1 auto;
+        flex: 1 1 0 !important;
         min-width: 0;
     }
     .na-task-filter-bar__filters {
@@ -127,6 +127,8 @@
         flex-wrap: nowrap;
         overflow: visible;
         margin-left: 0;
+        max-width: 50%;
+        flex-basis: auto !important;
     }
     .na-toolbar__main {
         flex-wrap: nowrap;
@@ -177,40 +179,40 @@
     .na-button--sm,
     .na-segment-control__option,
     .na-filter-dropdown__trigger {
-        min-height: 44px;
+        min-height: 36px;
         height: auto;
-        font-size: 14px;
+        font-size: 12px;
     }
     .na-input,
     .na-select,
     input,
     textarea,
     select {
-        font-size: 16px;
+        font-size: 14px;
         max-width: 100%;
         box-sizing: border-box;
     }
     input:not([type="checkbox"]):not([type="radio"]),
     select {
-        min-height: 44px;
+        min-height: 36px;
     }
     .na-search-input {
-        min-height: 44px;
+        min-height: 36px;
     }
     .na-task-card {
-        height: 60px;
-        min-height: 60px;
+        height: 54px;
+        min-height: 54px;
         max-height: none;
         flex-basis: auto;
-        padding: 6px 10px;
+        padding: 4px 8px;
     }
     .na-task-card__title {
-        font-size: 16px;
+        font-size: 14px;
         line-height: 18px;
         white-space: nowrap;
     }
     .na-task-card__meta {
-        font-size: 13px;
+        font-size: 11px;
         margin-top: 1px;
         height: 15px;
     }
