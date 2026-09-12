@@ -11,6 +11,7 @@
     import { isMyDayEntryDone } from "../../../shared/my-day";
     import { pixelToSnappedMinute } from "./timeline-utils";
     import { DAY_MINUTES } from "../../../shared/constants";
+    import { notifyError, formatRpcError } from "../../notify";
 
     interface Props {
         unscheduledEntries?: MyDayTaskEntry[];
