@@ -92,7 +92,6 @@
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
         if (e.pointerType !== "touch" && e.button !== 0) return;
-        e.preventDefault();
         e.stopPropagation();
         dragMode = mode;
         pointerId = e.pointerId;
@@ -117,6 +116,17 @@
         }
 
         if (!isDragging) return;
+        e.preventDefault();
+
+        if (workspace?.touch) {
+            const timeline = document.querySelector<HTMLElement>(".na-timeline-column");
+            if (timeline) {
+                const rect = timeline.getBoundingClientRect();
+                const edge = 64;
+                if (e.clientY < rect.top + edge) timeline.scrollTop -= 14;
+                else if (e.clientY > rect.bottom - edge) timeline.scrollTop += 14;
+            }
+        }
 
         if (dragMode === "move") {
             const newStart = snapMinute(originStart + dm);
