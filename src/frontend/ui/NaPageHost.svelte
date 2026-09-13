@@ -31,6 +31,7 @@
             if (!viewport) return;
             element.style.setProperty("--na-viewport-height", `${viewport.height}px`);
             element.style.setProperty("--na-viewport-offset-top", `${viewport.offsetTop}px`);
+            element.style.setProperty("--na-viewport-offset-bottom", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
         };
         updateViewport();
         viewport?.addEventListener("resize", updateViewport);
@@ -45,9 +46,16 @@
         stacks.set(root, stack);
         reconcile(root, stack);
         element.focus();
+        const focusVisible = (event: FocusEvent) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement) || target === element) return;
+            requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
+        };
+        element.addEventListener("focusin", focusVisible);
         return () => {
             viewport?.removeEventListener("resize", updateViewport);
             viewport?.removeEventListener("scroll", updateViewport);
+            element.removeEventListener("focusin", focusVisible);
             stack.pages = stack.pages.filter((page) => page !== element);
             stack.background.delete(element);
             element.remove();
@@ -117,6 +125,7 @@
         color: var(--na-text-primary);
         height: var(--na-viewport-height, 100%);
         max-height: 100%;
+        transform: translateY(var(--na-viewport-offset-top, 0px));
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
         box-sizing: border-box;

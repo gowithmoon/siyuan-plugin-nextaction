@@ -125,6 +125,33 @@
         back();
     }
 
+    // Keep the mobile dock in the browser history so the system back gesture
+    // closes the deepest in-app surface before leaving the host page.
+    function handlePopState() {
+        if (!touch) return;
+        back();
+        history.pushState({ nextactionMobile: true }, "", location.href);
+    }
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    function handleTouchStart(event: TouchEvent) {
+        if (!touch || event.touches.length !== 1) return;
+        touchStartX = event.touches[0].clientX;
+        touchStartY = event.touches[0].clientY;
+    }
+    function handleTouchEnd(event: TouchEvent) {
+        if (!touch || event.changedTouches.length !== 1) return;
+        const point = event.changedTouches[0];
+        const dx = point.clientX - touchStartX;
+        const dy = point.clientY - touchStartY;
+        touchStartX = 0;
+        touchStartY = 0;
+        // iOS/Android edge-back equivalent. Require a predominantly horizontal
+        // right swipe and avoid stealing vertical list scrolling.
+        if (dx >= 72 && Math.abs(dx) > Math.abs(dy) * 1.35) back();
+    }
+
     let activeView = $derived($session.activeView);
     let selectedTask = $state<TaskCacheEntry | null>(null);
     let detailComponent: TaskDetail | null = $state(null);
@@ -140,6 +167,12 @@
     // and local derivation in applyUpdate/applyChangeSetV2. This timer
     // only handles edge cases where incremental updates might diverge.
     onMount(() => {
+        if (touch) {
+            history.pushState({ nextactionMobile: true }, "", location.href);
+            window.addEventListener("popstate", handlePopState);
+            root?.addEventListener("touchstart", handleTouchStart, { passive: true });
+            root?.addEventListener("touchend", handleTouchEnd, { passive: true });
+        }
         refreshTimer = setInterval(() => {
             if (document.visibilityState === "visible") {
                 taskStore.loadTasks();
@@ -148,6 +181,11 @@
     });
 
     onDestroy(() => {
+        if (touch) {
+            window.removeEventListener("popstate", handlePopState);
+            root?.removeEventListener("touchstart", handleTouchStart);
+            root?.removeEventListener("touchend", handleTouchEnd);
+        }
         if (refreshTimer) clearInterval(refreshTimer);
     });
 
