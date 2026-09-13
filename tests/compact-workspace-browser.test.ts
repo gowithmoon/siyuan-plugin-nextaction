@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
@@ -20,7 +22,7 @@ for (const [width, height, mobile, dark] of [
             browserArgs: [
                 `--window-size=500,${Math.ceil((height * 500) / width)}`,
                 `--force-device-scale-factor=${(500 / width).toFixed(6)}`,
-                `--screenshot=/tmp/nextaction-${width}.png`,
+                `--screenshot=${join(tmpdir(), `nextaction-${width}.png`)}`,
             ],
             virtualTimeBudget: 8000,
             files: {
