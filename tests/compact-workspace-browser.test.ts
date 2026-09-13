@@ -89,11 +89,12 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  document.querySelector('.na-project-index__item').click();await pause();
  out.projectDrilldown=!!document.querySelector('.na-project-canvas')&&!document.querySelector('.na-project-index');
  const mode=document.querySelector('.na-project-compact-toolbar select');
- out.modes=[...mode.options].map(o=>o.value);
+ const mobileModes=()=>[...document.querySelectorAll('.na-project-mobile-modes button')];
+ out.modes=${mobile ? `['overview','board','plan']` : `[...mode.options].map(o=>o.value)`};
  out.modesFit=true;
- for(const value of out.modes) {mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
+ for(const value of out.modes) {${mobile ? `mobileModes()[out.modes.indexOf(value)]?.click();` : `mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
 
- mode.value='board';mode.dispatchEvent(new Event('change',{bubbles:true}));await pause();
+ ${mobile ? `mobileModes()[1]?.click();` : `mode.value='board';mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();
  out.singleBoardColumn=document.querySelectorAll('.na-project-board__column').length;
  const grouping=document.querySelector('#na-project-board-group-by');grouping.value='stage';grouping.dispatchEvent(new Event('change',{bubbles:true}));await pause();
  const pager=document.querySelector('.na-project-board__pager select');pager.value=String(pager.options.length-1);pager.dispatchEvent(new Event('change',{bubbles:true}));await pause();
@@ -116,7 +117,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  out.scheduleEdited=window.scheduleWrites.length===1 && window.scheduleWrites[0].start===150 && window.scheduleWrites[0].end===195;
  catalog();await pause();
  ${!mobile ? `click('项目视图',document.querySelector('.na-view-directory'));await pause();` : ""}
- out.projectModeRestored=document.querySelector('.na-project-compact-toolbar select')?.value;
+ out.projectModeRestored=${mobile ? `['overview','board','plan'][mobileModes().findIndex(button=>button.getAttribute('aria-checked')==='true')]` : `document.querySelector('.na-project-compact-toolbar select')?.value`};
  document.querySelector('.na-project-compact-toolbar button').click();await pause();
  out.backToProjectList=!!document.querySelector('.na-project-index');
  click('下一步行动',nav());await pause();
