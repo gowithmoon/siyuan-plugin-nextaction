@@ -81,7 +81,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  await pause();
  const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
- const catalog=()=>click('全部视图',document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-workspace__header"}'));
+ const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : 'document'});
  catalog(); await pause();
  out.catalogCount=document.querySelectorAll('.na-view-directory button').length;
  click('项目视图',document.querySelector('.na-view-directory'));await pause();
@@ -109,6 +109,10 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  out.myDayHasAdd=!!document.querySelector('.na-myday-add');
  click('时间线');await pause();
  ${mobile ? `const timeline=document.querySelector('.na-timeline-card'); if(timeline) { timeline.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',clientY:80,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerType:'touch',clientY:180,bubbles:true}));document.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',clientY:180,bubbles:true})); } await pause();out.touchDoesNotWrite=!!timeline && window.scheduleWrites.length===0;` : ""}
+
+ // 排期行属于列表模式；时间线触摸行为验证后切换到列表继续编辑排期。
+ const listMode=[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='列表');
+ if(listMode) { listMode.click(); await pause(); }
 
  const scheduleList=[...document.querySelectorAll('.na-accordion__trigger')].find(button=>button.textContent.includes('已排期任务')) || document.querySelector('.na-accordion__trigger');
  if(!scheduleList) throw Error('Missing My Day schedule accordion');
