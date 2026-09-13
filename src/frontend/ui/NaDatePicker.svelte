@@ -983,4 +983,38 @@
     .na-date-picker__action--danger:hover {
         background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-surface));
     }
+
+    /* Mobile pickers behave as a bottom sheet when rendered through the
+       fixed portal. Keeping this here makes the control usable from task
+       detail, create-task and custom-field forms without duplicating logic. */
+    @media (max-width: 600px) {
+        .na-date-picker__dropdown--fixed {
+            left: 0 !important;
+            top: auto !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            max-height: min(86dvh, 620px) !important;
+            overflow-y: auto;
+            padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+            border: 0;
+            border-top: 1px solid var(--na-color-divider);
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -8px 28px color-mix(in srgb, #000 18%, transparent);
+            background: var(--b3-theme-surface);
+        }
+        .na-date-picker__dropdown--fixed::before {
+            content: "";
+            display: block;
+            width: 36px;
+            height: 4px;
+            margin: -9px auto 12px;
+            border-radius: 999px;
+            background: var(--na-color-divider);
+        }
+        .na-date-picker__day,
+        .na-date-picker__action,
+        .na-date-picker__nav {
+            min-height: 40px;
+        }
+    }
 </style>
