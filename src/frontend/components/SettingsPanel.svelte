@@ -60,6 +60,10 @@
     let settingsBodyEl: HTMLDivElement | undefined = $state();
     let settingsLoaded = $state(false);
     let isDirty = $state(false);
+    let isCompactSettings = $state(false);
+    let mobileSettingsDetail = $state(false);
+    let settingsNavEl: HTMLElement | undefined = $state();
+    const pageScroll = new Map<SettingsPage, number>();
 
     let defaultImportance = $state(DEFAULT_SETTINGS.defaultImportance);
     let defaultEffort = $state(DEFAULT_SETTINGS.defaultEffort);
@@ -119,6 +123,7 @@
         purgingFieldId = [...state.maintenanceBusy].find((id) => id.startsWith("purge:"))?.slice("purge:".length) || "";
         error = state.error;
         modernTab = state.page;
+        mobileSettingsDetail = state.categoryDetailOpen;
         settingsLoaded = state.loadState === "loaded";
         isDirty = state.dirty;
     }
@@ -156,6 +161,16 @@
         aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
     }
 
+    onMount(() => {
+        const media = window.matchMedia("(max-width: 520px)");
+        const updateCompact = () => {
+            isCompactSettings = media.matches;
+        };
+        updateCompact();
+        media.addEventListener("change", updateCompact);
+        return () => media.removeEventListener("change", updateCompact);
+    });
+
     onMount(async () => {
         controller.beginLoad();
         syncControllerState();
@@ -192,9 +207,30 @@
     });
 
     function selectModernTab(tab: ModernTabId) {
+        if (mobileSettingsDetail) pageScroll.set(modernTab, settingsBodyEl?.scrollTop || 0);
         controller.setPage(tab);
         syncControllerState();
-        requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
+        void tick().then(() => {
+            settingsBodyEl?.scrollTo({ top: pageScroll.get(tab) || 0, behavior: "auto" });
+            if (isCompactSettings)
+                settingsRootEl
+                    ?.querySelector<HTMLButtonElement>(".na-settings-modern__back")
+                    ?.focus({ preventScroll: true });
+        });
+    }
+
+    export async function requestBack() {
+        if (isCompactSettings && mobileSettingsDetail) {
+            pageScroll.set(modernTab, settingsBodyEl?.scrollTop || 0);
+            controller.backToCategories();
+            syncControllerState();
+            await tick();
+            settingsNavEl
+                ?.querySelector<HTMLButtonElement>(`[data-settings-page="${modernTab}"]`)
+                ?.focus({ preventScroll: true });
+            return;
+        }
+        await requestClose();
     }
 
     function isTopmostSettingsDialog(): boolean {
@@ -230,7 +266,7 @@
         if (event.key !== "Escape" || event.isComposing || !isTopmostSettingsDialog()) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        requestClose();
+        void requestBack();
     }
 
     function buildSettings(): PluginSettings {
@@ -697,18 +733,35 @@
 
 <svelte:window onkeydowncapture={handleWindowKeydown} />
 
-<div class="na-settings-modern" bind:this={settingsRootEl}>
-    <aside class="na-settings-modern__nav" aria-label={i18n?.settingsTitle || "Settings"}>
+<div
+    class="na-settings-modern"
+    class:mobile-detail={isCompactSettings && mobileSettingsDetail}
+    bind:this={settingsRootEl}
+>
+    <aside class="na-settings-modern__nav" bind:this={settingsNavEl} aria-label={i18n?.settingsTitle || "Settings"}>
         <div class="na-settings-modern__brand">
             <span class="na-settings-modern__brand-mark"><NaIcon symbol="iconNextAction" size={19} /></span>
             <div><strong>{i18n?.settingsTitle || "Settings"}</strong><span>NextAction</span></div>
+            <button
+                type="button"
+                class="b3-button b3-button--text na-settings-modern__mobile-close"
+                onclick={requestClose}
+                aria-label={i18n?.close || "Close"}
+            >
+                <NaIcon symbol="iconCloseRound" size={18} />
+            </button>
         </div>
+        {#if isCompactSettings && isDirty}<p class="na-settings-modern__category-notice" role="status">
+                {i18n.settingsUnsaved}
+            </p>{/if}
+        {#if isCompactSettings && error}<p class="na-settings-modern__error" role="alert">{error}</p>{/if}
         {#each [i18n?.settingNavGroupTask || "Workspace", i18n?.settingNavGroupIntegration || "Integrations", i18n?.settingNavGroupSystem || "System"] as group}
             <div class="na-settings-modern__group">
                 <span>{group}</span>
                 {#each modernTabs.filter((tab) => tab.group === group) as tab}
                     <button
                         type="button"
+                        data-settings-page={tab.id}
                         class:active={modernTab === tab.id}
                         class="na-settings-modern__nav-item b3-tooltips b3-tooltips__e"
                         onclick={() => selectModernTab(tab.id)}
@@ -717,6 +770,7 @@
                     >
                         <NaIcon symbol={tab.icon} size={17} />
                         <span>{tab.label}</span>
+                        {#if isCompactSettings}<NaIcon symbol="iconRight" size={15} />{/if}
                     </button>
                 {/each}
             </div>
@@ -734,12 +788,24 @@
                 title={modernTabs.find((tab) => tab.id === modernTab)?.label || ""}
                 description={modernTabs.find((tab) => tab.id === modernTab)?.desc || ""}
             >
+                {#snippet leading()}
+                    {#if isCompactSettings}
+                        <button
+                            type="button"
+                            class="b3-button b3-button--text na-settings-modern__back"
+                            onclick={requestBack}
+                            aria-label={i18n?.back || "Back"}
+                        >
+                            <NaIcon symbol="iconLeft" size={18} />
+                        </button>
+                    {/if}
+                {/snippet}
                 {#snippet actions()}
                     <button
                         type="button"
                         class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n"
                         onclick={requestClose}
-                        aria-label={i18n?.cancel || "Close"}
+                        aria-label={i18n?.close || "Close"}
                     >
                         <NaIcon symbol="iconCloseRound" size={18} />
                     </button>
@@ -870,6 +936,7 @@
 
     .na-settings-modern {
         --na-settings-nav-width: 176px;
+        box-sizing: border-box;
         display: flex;
         width: 100%;
         height: 100%;
@@ -915,6 +982,17 @@
             color: var(--na-text-secondary);
             font-size: 10px;
         }
+    }
+
+    .na-settings-modern__category-notice {
+        margin: 0;
+        color: var(--na-text-secondary);
+        font-size: 12px;
+    }
+
+    .na-settings-modern__mobile-close,
+    .na-settings-modern__back {
+        display: none;
     }
 
     .na-settings-modern__brand-mark {
@@ -1096,48 +1174,143 @@
 
     @media (max-width: 520px) {
         .na-settings-modern {
+            --na-control-height: 44px;
+            --na-control-height-sm: 44px;
+            --na-font-size-md: 14px;
             flex-direction: column;
+            overflow: hidden;
         }
         .na-settings-modern__nav {
-            position: sticky;
-            flex: 0 0 auto;
-            flex-direction: row;
-            gap: 5px;
+            box-sizing: border-box;
+            position: relative;
+            flex: 1 1 auto;
+            align-items: stretch;
+            flex-direction: column;
             width: 100%;
-            padding: 7px 9px;
-            overflow-x: auto;
-            overflow-y: hidden;
-            border-right: 0;
-            border-bottom: 1px solid var(--b3-border-color);
+            min-height: 0;
+            padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+            overflow: auto;
+            border: 0;
         }
         .na-settings-modern__brand {
             flex: 0 0 auto;
-            padding: 0 7px 0 0;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            min-height: 48px;
+            padding: 0 4px 10px;
+            border-bottom: 1px solid var(--b3-border-color);
+        }
+        .na-settings-modern__brand > div {
+            display: flex;
+        }
+        .na-settings-modern__mobile-close {
+            display: grid;
+            place-items: center;
+            width: 44px;
+            height: 44px;
+            padding: 0;
         }
         .na-settings-modern__group {
             flex: 0 0 auto;
-            flex-direction: row;
-            width: auto;
+            gap: 4px;
+            width: 100%;
+            padding-top: 14px;
+        }
+        .na-settings-modern__group > span {
+            display: block;
+            padding: 0 10px 5px;
+            font-size: 10px;
         }
         .na-settings-modern__nav-item {
-            width: 38px;
-            min-height: 34px;
+            justify-content: flex-start;
+            width: 100%;
+            min-height: 50px;
+            padding: 0 12px;
+            gap: 12px;
+            font-size: 14px;
+        }
+        .na-settings-modern__nav-item > span {
+            display: block;
+            flex: 1;
+        }
+        .na-settings-modern__nav-item > :global(.na-icon:last-child) {
+            color: var(--na-text-secondary);
         }
         .na-settings-modern__reset-all {
-            flex: 0 0 38px;
-            width: 38px;
-            min-height: 34px;
-            margin-top: 0;
-            margin-left: auto;
+            width: 100%;
+            min-height: 50px;
+            margin-top: auto;
+            padding: 0 12px;
+            justify-content: flex-start;
+        }
+        .na-settings-modern__reset-all > span {
+            display: block;
+        }
+        .na-settings-modern:not(.mobile-detail) .na-settings-modern__content {
+            display: none;
+        }
+        .na-settings-modern.mobile-detail .na-settings-modern__nav {
+            display: none;
+        }
+        .na-settings-modern.mobile-detail .na-settings-modern__content {
+            display: flex;
+        }
+        .na-settings-modern__header {
+            flex: 0 0 auto;
+        }
+        .na-settings-modern__back {
+            display: grid;
+            place-items: center;
+            width: 44px;
+            height: 44px;
+            padding: 0;
         }
         .na-settings-modern__body {
-            padding: 14px 16px 18px;
+            padding: 14px 16px max(18px, env(safe-area-inset-bottom));
         }
         .na-settings-modern__footer {
-            padding: 8px 16px;
+            padding: 8px 16px max(8px, env(safe-area-inset-bottom));
         }
         .na-settings-modern__dirty {
+            font-size: 12px;
+        }
+        .na-settings-modern__footer {
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .na-settings-modern :global(button) {
+            min-height: 44px;
+            min-width: 44px;
+        }
+        .na-settings-modern :global(input:not([type="radio"]):not([type="checkbox"])),
+        .na-settings-modern :global(select) {
+            min-height: 44px;
+            max-width: 100%;
+        }
+        .na-settings-modern :global(.na-setting-row__copy label) {
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+        }
+        .na-settings-modern :global(.na-setting-row__control) {
+            flex-wrap: wrap;
+        }
+        .na-settings-modern :global(.na-page-stack) {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .na-settings-modern :global(.na-panel-header__text h1) {
+            white-space: normal;
+        }
+        .na-settings-modern :global(.na-panel-header__text p),
+        .na-settings-modern :global(.na-panel-header__eyebrow) {
             display: none;
+        }
+        .na-settings-modern :global(.na-panel-header) {
+            padding: 4px 12px;
+            align-items: center;
+            gap: 8px;
         }
     }
 
