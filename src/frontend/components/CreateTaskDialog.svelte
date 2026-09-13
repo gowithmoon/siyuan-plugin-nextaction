@@ -441,6 +441,27 @@
         color: var(--na-text-primary);
         background: var(--b3-theme-surface);
     }
+
+    /* Mobile page presentation: keep the primary action reachable while the
+       form scrolls, including when the software keyboard resizes the viewport. */
+    :global(.na-page-host) .na-create-task {
+        min-height: 100%;
+        max-height: none;
+        padding-bottom: calc(68px + env(safe-area-inset-bottom));
+    }
+    :global(.na-page-host) .na-create-task__actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        margin-inline: -1px;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--na-color-divider, var(--b3-border-color));
+        background: color-mix(in srgb, var(--b3-theme-surface) 94%, transparent);
+        backdrop-filter: blur(10px);
+    }
+    :global(.na-page-host .na-create-task__actions .na-button) {
+        min-height: 44px;
+    }
     .na-create-task__composer {
         margin: 16px 18px;
         padding: 13px 14px 10px;

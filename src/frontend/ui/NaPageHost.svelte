@@ -26,6 +26,15 @@
     let { title, backLabel, onBack, chrome = true, mode = "page", children, actions = undefined }: Props = $props();
     let element: HTMLDivElement;
     onMount(() => {
+        const viewport = window.visualViewport;
+        const updateViewport = () => {
+            if (!viewport) return;
+            element.style.setProperty("--na-viewport-height", `${viewport.height}px`);
+            element.style.setProperty("--na-viewport-offset-top", `${viewport.offsetTop}px`);
+        };
+        updateViewport();
+        viewport?.addEventListener("resize", updateViewport);
+        viewport?.addEventListener("scroll", updateViewport);
         const previous = document.activeElement as HTMLElement | null;
         const parent = element.parentElement;
         const root = element.closest(".na-app") || parent;
@@ -37,6 +46,8 @@
         reconcile(root, stack);
         element.focus();
         return () => {
+            viewport?.removeEventListener("resize", updateViewport);
+            viewport?.removeEventListener("scroll", updateViewport);
             stack.pages = stack.pages.filter((page) => page !== element);
             stack.background.delete(element);
             element.remove();
@@ -104,6 +115,9 @@
         min-height: 0;
         background: var(--b3-theme-background);
         color: var(--na-text-primary);
+        height: var(--na-viewport-height, 100%);
+        max-height: 100%;
+        padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
         box-sizing: border-box;
     }
