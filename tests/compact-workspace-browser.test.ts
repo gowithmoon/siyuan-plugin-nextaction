@@ -110,7 +110,12 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  click('时间线');await pause();
  ${mobile ? `const timeline=document.querySelector('.na-timeline-card'); if(timeline) { timeline.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',clientY:80,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerType:'touch',clientY:180,bubbles:true}));document.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',clientY:180,bubbles:true})); } await pause();out.touchDoesNotWrite=!!timeline && window.scheduleWrites.length===0;` : ""}
 
- const scheduleList=[...document.querySelectorAll('.na-accordion__trigger')].find(button=>button.textContent.includes('已排期任务'));scheduleList.click();await pause();click('安排时间',document.querySelector('.na-myday-schedule-row'));await pause();
+ const scheduleList=[...document.querySelectorAll('.na-accordion__trigger')].find(button=>button.textContent.includes('已排期任务')) || document.querySelector('.na-accordion__trigger');
+ if(!scheduleList) throw Error('Missing My Day schedule accordion');
+ scheduleList.click();await pause();
+ const scheduleRow=document.querySelector('.na-myday-schedule-row');
+ if(!scheduleRow) throw Error('Missing My Day schedule row');
+ click('安排时间',scheduleRow);await pause();
  const time=document.querySelector('.na-schedule-editor input[type="time"]');time.value='07:30';time.dispatchEvent(new Event('input',{bubbles:true}));
  const duration=document.querySelector('.na-schedule-editor input[type="number"]');duration.value='45';duration.dispatchEvent(new Event('input',{bubbles:true}));
  document.querySelector('.na-schedule-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();
