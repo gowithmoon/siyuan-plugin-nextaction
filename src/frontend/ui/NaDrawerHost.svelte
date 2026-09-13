@@ -20,7 +20,7 @@
 {#if open}
     <button class="na-drawer-host__backdrop" aria-label={label} aria-hidden="true" tabindex="-1" onclick={() => onRequestClose("backdrop")}></button>
 {/if}
-<aside
+<div
     class="na-drawer-host"
     class:na-drawer-host--open={open}
     role="dialog"
@@ -30,7 +30,7 @@
     tabindex="-1"
 >
     {@render children()}
-</aside>
+</div>
 
 <style lang="scss">
     .na-drawer-host {
