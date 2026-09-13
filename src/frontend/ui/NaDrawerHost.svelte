@@ -18,9 +18,17 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-    <button class="na-drawer-host__backdrop" aria-label={label} onclick={() => onRequestClose("backdrop")}></button>
+    <button class="na-drawer-host__backdrop" aria-label={label} aria-hidden="true" tabindex="-1" onclick={() => onRequestClose("backdrop")}></button>
 {/if}
-<aside class="na-drawer-host" class:na-drawer-host--open={open} aria-hidden={!open}>
+<aside
+    class="na-drawer-host"
+    class:na-drawer-host--open={open}
+    role="dialog"
+    aria-modal="true"
+    aria-label={label}
+    aria-hidden={!open}
+    tabindex="-1"
+>
     {@render children()}
 </aside>
 
@@ -58,6 +66,12 @@
         .na-drawer-host {
             width: 100%;
             border-left: 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .na-drawer-host {
+            transition: none;
         }
     }
 </style>

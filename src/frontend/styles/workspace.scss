@@ -113,8 +113,8 @@
     .na-project-toolbar .na-button,
     .na-project-toolbar .na-input,
     .na-project-toolbar select {
-        min-height: 36px;
-        height: 36px;
+        min-height: 44px;
+        height: 44px;
         font-size: 12px;
     }
     --na-font-size-xs: 11px;
@@ -194,7 +194,7 @@
     .na-button--sm,
     .na-segment-control__option,
     .na-filter-dropdown__trigger {
-        min-height: 36px;
+        min-height: 44px;
         height: auto;
         font-size: 12px;
     }
@@ -209,10 +209,10 @@
     }
     input:not([type="checkbox"]):not([type="radio"]),
     select {
-        min-height: 36px;
+        min-height: 44px;
     }
     .na-search-input {
-        min-height: 36px;
+        min-height: 44px;
     }
     .na-task-card {
         height: auto;
@@ -230,7 +230,7 @@
     }
     .na-task-card__title-row {
         align-items: flex-start;
-        min-height: 36px;
+        min-height: 44px;
     }
     .na-task-card__title-composite {
         display: -webkit-box;
@@ -371,7 +371,7 @@
         box-sizing: border-box;
     }
     .na-accordion__trigger {
-        min-height: 36px;
+        min-height: 44px;
     }
     .na-myday-add {
         padding: 2px 0;
@@ -457,4 +457,23 @@
 .na-workspace--touch .na-create-task {
     max-height: none;
     overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .na-workspace--touch *,
+    .na-workspace--touch *::before,
+    .na-workspace--touch *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .na-workspace--touch .na-mobile-view-picker__scrim,
+    .na-workspace--touch .na-mobile-actions {
+        background: var(--b3-theme-surface);
+        opacity: 1;
+    }
 }
