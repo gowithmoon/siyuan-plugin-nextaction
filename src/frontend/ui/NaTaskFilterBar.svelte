@@ -253,11 +253,25 @@
 <style lang="scss">
     .na-filter-page {
         padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
     .na-filter-page :global(.na-task-filter-bar__filters) {
         flex-direction: column;
         align-items: stretch;
         overflow: visible;
+        width: 100%;
+        gap: 10px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__search) {
+        width: 100%;
+    }
+    .na-filter-page :global(.na-task-filter-bar__search .na-search-input) {
+        min-height: 42px;
+    }
+    .na-filter-page :global(.na-filter-dropdown__trigger),
+    .na-filter-page :global(.na-sort-select) {
         width: 100%;
     }
     .na-task-filter-bar {

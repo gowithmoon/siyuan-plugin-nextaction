@@ -669,9 +669,9 @@
         </div>
     </div>
 
-    {#if touch}<div inert={mobileViewPickerOpen || selectedTask !== null || createOptions !== null ? true : undefined}>
-            <CompactNavigation {i18n} {activeView} {catalog} bottom onSwitch={switchView} onCatalog={showCatalog} />
-        </div>{/if}
+    {#if touch}
+        <CompactNavigation {i18n} {activeView} {catalog} bottom onSwitch={switchView} onCatalog={showCatalog} />
+    {/if}
     {#if touch && mobileViewPickerOpen}
         <div class="na-mobile-view-picker" role="dialog" aria-modal="true" aria-label={i18n.allViews}>
             <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}
