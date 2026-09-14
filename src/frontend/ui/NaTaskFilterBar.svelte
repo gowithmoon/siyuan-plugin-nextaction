@@ -280,9 +280,12 @@
         width: 100%;
         gap: 12px;
         margin: 0;
+        flex-basis: auto !important;
+        flex-wrap: unset !important;
     }
     .na-filter-page :global(.na-task-filter-bar__filters > div) {
         min-width: 0;
+        width: auto !important;
     }
     .na-filter-page :global(.na-filter-dropdown__trigger) {
         width: 100%;
@@ -311,12 +314,32 @@
     .na-filter-page :global(.na-task-filter-bar__custom) {
         grid-column: 1 / -1;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto;
         width: 100%;
         padding: 10px;
         border: 1px solid var(--na-color-divider);
         border-radius: 12px;
         background: color-mix(in srgb, var(--b3-theme-surface) 84%, transparent);
+        box-sizing: border-box;
+        gap: 8px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-select) {
+        width: 100% !important;
+        max-width: none;
+        min-width: 0;
+        height: 40px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-input) {
+        grid-column: 1 / -1;
+        width: 100% !important;
+        box-sizing: border-box;
+        height: 40px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-button) {
+        grid-column: 1 / -1;
+        width: 100% !important;
+        min-height: 40px;
     }
     .na-filter-page :global(.na-task-filter-bar__filters > .na-chip) {
         grid-column: 1 / -1;
