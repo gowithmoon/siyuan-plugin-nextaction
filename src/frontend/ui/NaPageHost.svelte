@@ -31,7 +31,10 @@
             if (!viewport) return;
             element.style.setProperty("--na-viewport-height", `${viewport.height}px`);
             element.style.setProperty("--na-viewport-offset-top", `${viewport.offsetTop}px`);
-            element.style.setProperty("--na-viewport-offset-bottom", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
+            element.style.setProperty(
+                "--na-viewport-offset-bottom",
+                `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`,
+            );
         };
         updateViewport();
         viewport?.addEventListener("resize", updateViewport);
@@ -156,7 +159,7 @@
         inset: auto 0 0;
         max-height: min(78dvh, 720px);
         border-radius: 16px 16px 0 0;
-        box-shadow: 0 -8px 32px rgb(0 0 0 / 22%);
+        box-shadow: 0 -8px 32px color-mix(in srgb, var(--b3-theme-on-background) 22%, transparent);
     }
     .na-page-host--sheet::before {
         content: "";

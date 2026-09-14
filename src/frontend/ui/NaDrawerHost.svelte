@@ -18,7 +18,13 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-    <button class="na-drawer-host__backdrop" aria-label={label} aria-hidden="true" tabindex="-1" onclick={() => onRequestClose("backdrop")}></button>
+    <button
+        class="na-drawer-host__backdrop"
+        aria-label={label}
+        aria-hidden="true"
+        tabindex="-1"
+        onclick={() => onRequestClose("backdrop")}
+    ></button>
 {/if}
 <div
     class="na-drawer-host"

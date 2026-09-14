@@ -98,7 +98,9 @@
         e.stopPropagation();
         if (workspace?.touch) {
             longPressActive = false;
-            longPressTimer = setTimeout(() => { longPressActive = true; }, 420);
+            longPressTimer = setTimeout(() => {
+                longPressActive = true;
+            }, 420);
         }
         dragMode = mode;
         pointerId = e.pointerId;
@@ -110,7 +112,11 @@
         previewEnd = originEnd;
         previewOffsetX = 0;
         isDragging = false;
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Synthetic events may not have an active pointer to capture.
+        }
     }
 
     function handlePointerMove(e: PointerEvent) {
@@ -158,7 +164,10 @@
         if (dragMode === "none") return;
         const currentMode = dragMode;
         dragMode = "none";
-        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
 
         if (!isDragging && workspace?.touch) {
             if (!longPressActive) {
@@ -226,17 +235,28 @@
     }
 
     function handleContextMenu(event: MouseEvent): void {
-        if (workspace?.touch) { event.preventDefault(); return; }
+        if (workspace?.touch) {
+            event.preventDefault();
+            return;
+        }
         event.preventDefault();
         onContextMenu(task, event);
     }
 
     function openQuickMenu(event: MouseEvent) {
-        showTaskQuickMenu(task, event.clientX, event.clientY, bridge, i18n, {
-            onScheduleRemoved: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
-            onTaskUpdated: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
-            onRemovedFromMyDay: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
-        }, isDone);
+        showTaskQuickMenu(
+            task,
+            event.clientX,
+            event.clientY,
+            bridge,
+            i18n,
+            {
+                onScheduleRemoved: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+                onTaskUpdated: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
+                onRemovedFromMyDay: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+            },
+            isDone,
+        );
     }
 
     function handleResizePointerDown(event: PointerEvent, mode: "resize-start" | "resize-end"): void {
@@ -249,7 +269,10 @@
     class="na-timeline-card {priorityClass}"
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
-        if (workspace?.touch) { event.preventDefault(); return; }
+        if (workspace?.touch) {
+            event.preventDefault();
+            return;
+        }
     }}
     ondblclick={(event) => {
         if (!workspace?.touch) return;

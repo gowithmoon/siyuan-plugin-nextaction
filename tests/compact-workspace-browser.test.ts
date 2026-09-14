@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 const source = (path: string) => JSON.stringify(resolve(path));
@@ -81,7 +80,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  await pause();
  const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
- const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : 'document'});
+ const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : "document"});
  catalog(); await pause();
  out.catalogCount=document.querySelectorAll('.na-view-directory button').length;
  click('项目视图',document.querySelector('.na-view-directory'));await pause();
@@ -90,7 +89,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  out.projectDrilldown=!!document.querySelector('.na-project-canvas')&&!document.querySelector('.na-project-index');
  const mode=document.querySelector('.na-project-compact-toolbar select');
  const mobileModes=()=>[...document.querySelectorAll('.na-project-mobile-modes button')];
- out.modes=${mobile ? `['overview','board','plan']` : `[...mode.options].map(o=>o.value)`};
+ out.modes=${mobile ? `['overview','hierarchy','board','plan','gantt']` : `[...mode.options].map(o=>o.value)`};
  out.modesFit=true;
  for(const value of out.modes) {${mobile ? `mobileModes()[out.modes.indexOf(value)]?.click();` : `mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
 

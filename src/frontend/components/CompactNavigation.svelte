@@ -50,6 +50,13 @@
                 {#if bottom}<NaIcon symbol={item.icon} size={20} />{/if}<span>{item.label}</span>
             </button>
         {/each}
+        {#if !bottom}<button
+                type="button"
+                class:active={catalog || !QUICK_VIEWS.some((view) => view === activeView)}
+                aria-current={catalog || !QUICK_VIEWS.some((view) => view === activeView) ? "page" : undefined}
+                onclick={onCatalog}
+                ><NaIcon symbol="iconList" size={bottom ? 20 : 16} /><span>{i18n.allViews}</span></button
+            >{/if}
         {#if bottom}<button
                 type="button"
                 class:active={catalog || !QUICK_VIEWS.some((view) => view === activeView)}

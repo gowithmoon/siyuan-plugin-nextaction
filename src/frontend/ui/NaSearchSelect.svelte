@@ -582,7 +582,7 @@
             border: 0;
             border-top: 1px solid var(--na-color-divider);
             border-radius: 16px 16px 0 0;
-            box-shadow: 0 -8px 28px color-mix(in srgb, #000 18%, transparent);
+            box-shadow: 0 -8px 28px color-mix(in srgb, var(--b3-theme-on-background) 18%, transparent);
             background: var(--b3-theme-surface);
         }
         .na-search-select__dropdown--fixed::before {

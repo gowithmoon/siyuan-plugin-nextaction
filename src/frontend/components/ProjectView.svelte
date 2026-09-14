@@ -352,6 +352,7 @@
         {#if compact}
             <div class="na-project-compact-toolbar">
                 {#if level !== "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
+                {#if mobile && level === "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
                 {#if level === "project"}
                     {#if mobile}
                         <span class="na-project-compact-title">{selectedSummary?.project.title || i18n.untitled}</span>
@@ -406,12 +407,11 @@
                             { value: "overview", label: i18n.projectViewOverview },
                             { value: "board", label: i18n.projectViewBoard },
                             { value: "plan", label: i18n.projectViewPlan },
+                            { value: "hierarchy", label: i18n.projectViewHierarchy },
+                            { value: "gantt", label: i18n.projectViewGantt },
                         ]}
                         onChange={handleModeChange}
                     />
-                    {#if mode === "hierarchy" || mode === "gantt"}<span class="na-project-mobile-modes__secondary"
-                            >{mode === "hierarchy" ? i18n.projectViewHierarchy : i18n.projectViewGantt}</span
-                        >{/if}
                 </div>
             {/if}
             {#if level === "list"}<NaTaskFilterBar

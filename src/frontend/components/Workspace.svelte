@@ -105,6 +105,9 @@
     }
     function showCatalog() {
         if (touch) {
+            // Keep the project workspace mounted while the mobile directory is open.
+            // This preserves its mode and drill-down state when returning from a quick view.
+            if (activeView === VIEW_MY_DAY) session.openView(VIEW_BY_PROJECT);
             mobileViewPickerOpen = true;
             mobileActionsOpen = false;
             return;
@@ -503,7 +506,12 @@
 >
     {#if !compact}<NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />{/if}
 
-    <div class="na-app__center" inert={touch && (mobileViewPickerOpen || mobileActionsOpen || selectedTask !== null || createOptions !== null) ? true : undefined}>
+    <div
+        class="na-app__center"
+        inert={touch && (mobileViewPickerOpen || mobileActionsOpen || selectedTask !== null || createOptions !== null)
+            ? true
+            : undefined}
+    >
         {#if compact}
             <div class="na-workspace__header">
                 {#if $session.canBack && !catalog}<NaIconButton
@@ -514,10 +522,21 @@
                 <h1>{catalog ? i18n.allViews : activeViewMeta.label}</h1>
                 <NaIconButton symbol="iconAdd" label={i18n.createTask} onclick={() => openCreate()} />
                 {#if !touch}<NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />{/if}
-                {#if touch}<NaIconButton symbol="iconMore" label="更多" onclick={() => (mobileActionsOpen = !mobileActionsOpen)} />{/if}
+                {#if touch}<NaIconButton
+                        symbol="iconMore"
+                        label="更多"
+                        onclick={() => (mobileActionsOpen = !mobileActionsOpen)}
+                    />{/if}
                 {#if touch && mobileActionsOpen}
                     <div class="na-mobile-actions" role="menu">
-                        <button type="button" role="menuitem" onclick={() => { mobileActionsOpen = false; void handleRefresh(); }}>{i18n.refreshTasks}</button>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onclick={() => {
+                                mobileActionsOpen = false;
+                                void handleRefresh();
+                            }}>{i18n.refreshTasks}</button
+                        >
                     </div>
                 {/if}
             </div>
@@ -572,6 +591,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onScheduleEdit={workspace.openSchedule}
                     {i18n}
                 />
             {:else if activeView === VIEW_ALL_TASKS}
@@ -650,29 +670,38 @@
     </div>
 
     {#if touch}<div inert={mobileViewPickerOpen || selectedTask !== null || createOptions !== null ? true : undefined}>
-        <CompactNavigation
-            {i18n}
-            {activeView}
-            {catalog}
-            bottom
-            onSwitch={switchView}
-            onCatalog={showCatalog}
-        />
-    </div>{/if}
+            <CompactNavigation {i18n} {activeView} {catalog} bottom onSwitch={switchView} onCatalog={showCatalog} />
+        </div>{/if}
     {#if touch && mobileViewPickerOpen}
         <div class="na-mobile-view-picker" role="dialog" aria-modal="true" aria-label={i18n.allViews}>
-            <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}></button>
+            <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}
+            ></button>
             <div class="na-mobile-view-picker__sheet">
                 <div class="na-mobile-view-picker__header">
                     <h2>{i18n.allViews}</h2>
                     <NaIconButton symbol="iconClose" label={i18n.cancel} onclick={closeMobileViewPicker} />
                 </div>
+                {#if activeView !== VIEW_BY_PROJECT}
+                    <div class="na-project-compact-toolbar na-mobile-view-picker__resume">
+                        <NaButton
+                            size="sm"
+                            icon="iconProject"
+                            onclick={() => {
+                                closeMobileViewPicker();
+                                switchView(VIEW_BY_PROJECT);
+                            }}>{i18n.projectList}</NaButton
+                        >
+                    </div>
+                {/if}
                 <CompactNavigation
                     {i18n}
                     {activeView}
                     catalog={false}
                     directoryOnly
-                    onSwitch={(view) => { closeMobileViewPicker(); switchView(view); }}
+                    onSwitch={(view) => {
+                        closeMobileViewPicker();
+                        switchView(view);
+                    }}
                     onCatalog={closeMobileViewPicker}
                 />
             </div>

@@ -38,11 +38,16 @@
         onDragLeave = () => {},
         onDrop = () => {},
     }: Props = $props();
-    let touchDrag: { blockId: string; pointerId: number; startX: number; startY: number; dragging: boolean } | null = null;
+    let touchDrag: { blockId: string; pointerId: number; startX: number; startY: number; dragging: boolean } | null =
+        null;
     function touchDown(e: PointerEvent, blockId: string) {
         if (!workspace?.touch || e.pointerType !== "touch") return;
         touchDrag = { blockId, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, dragging: false };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Synthetic events may not have an active pointer to capture.
+        }
     }
     function touchMove(e: PointerEvent) {
         if (!touchDrag || e.pointerId !== touchDrag.pointerId) return;
@@ -51,17 +56,23 @@
     }
     async function touchUp(e: PointerEvent) {
         if (!touchDrag || e.pointerId !== touchDrag.pointerId) return;
-        const drag = touchDrag; touchDrag = null;
+        const drag = touchDrag;
+        touchDrag = null;
         if (!drag.dragging) return;
         e.preventDefault();
         const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".na-timeline-column");
         if (!target) return;
         const rect = target.getBoundingClientRect();
-        const minute = Math.max(0, Math.min(DAY_MINUTES - 60, pixelToSnappedMinute(e.clientY - rect.top + target.scrollTop)));
+        const minute = Math.max(
+            0,
+            Math.min(DAY_MINUTES - 60, pixelToSnappedMinute(e.clientY - rect.top + target.scrollTop)),
+        );
         try {
             const newState = await bridge.setMyDaySchedule(drag.blockId, minute, minute + 60);
             taskStore.applyMyDayUpdate(newState);
-        } catch (err: any) { notifyError(formatRpcError(err, i18n)); }
+        } catch (err: any) {
+            notifyError(formatRpcError(err, i18n));
+        }
     }
 
     function handleDragStart(e: DragEvent, blockId: string) {
