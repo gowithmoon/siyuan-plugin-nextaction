@@ -131,13 +131,14 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  click('下一步行动',nav());await pause();
  const filters=()=>[...document.querySelectorAll('.na-task-filter-bar button')].find(button=>button.textContent.includes('筛选与排序'));
  filters().click();await pause();
- let search=document.querySelector('.na-page-host input[type="search"]');search.value='不存在';search.dispatchEvent(new Event('input',{bubbles:true}));await pause();
+ const selectPriority=async()=>{const panel=document.querySelector('.na-page-host');const trigger=[...panel.querySelectorAll('.na-filter-dropdown__trigger')].find(button=>button.textContent.includes('优先级'));trigger.click();await pause();const input=panel.querySelector('.na-filter-dropdown__panel input');input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));await pause();};
+ await selectPriority();
  click('取消',document.querySelector('.na-page-host'));await pause();
  out.filterCancelled=document.querySelectorAll('.na-task-card').length>0;
- filters().click();await pause();search=document.querySelector('.na-page-host input[type="search"]');search.value='不存在';search.dispatchEvent(new Event('input',{bubbles:true}));await pause();
+ filters().click();await pause();await selectPriority();
  click('应用',document.querySelector('.na-page-host'));await pause();
  out.filterApplied=document.querySelectorAll('.na-task-card').length===0;
- const resetSearch=document.querySelector('.na-task-filter-bar input[type="search"]');resetSearch.value='';resetSearch.dispatchEvent(new Event('input',{bubbles:true}));await pause(350);
+ filters().click();await pause();click('清除筛选',document.querySelector('.na-page-host'));await pause();click('应用',document.querySelector('.na-page-host'));await pause();
  ${
      mobile
          ? `document.querySelector('.na-task-card__title').click();await pause();

@@ -33,6 +33,7 @@
     export let statusValues: readonly string[] = STATUS_LIST;
     export let sortOptions: { value: string; label: string }[] | undefined = undefined;
     export let searchPlaceholder = "";
+    export let showSearch = true;
     export let i18n: any;
     export let showClear = false;
     export let clearLabel = "";
@@ -109,15 +110,15 @@
 </script>
 
 <div class="na-task-filter-bar">
-    <div class="na-task-filter-bar__search">
-        <NaSearchInput
-            value={searchText}
-            compact
-            placeholder={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
-            ariaLabel={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
-            onInput={onSearchInput}
-        />
-    </div>
+    {#if showSearch}<div class="na-task-filter-bar__search">
+            <NaSearchInput
+                value={searchText}
+                compact
+                placeholder={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
+                ariaLabel={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
+                onInput={onSearchInput}
+            />
+        </div>{/if}
     {#if compact}
         <NaButton
             size="sm"
@@ -241,6 +242,7 @@
                 {sortOptions}
                 {i18n}
                 expanded
+                showSearch={false}
                 onChange={(value: FilterState) => (draft = value)}
             />
             <NaButton onclick={() => (draft = JSON.parse(JSON.stringify(DEFAULT_FILTER_STATE)))}
@@ -252,13 +254,114 @@
 
 <style lang="scss">
     .na-filter-page {
-        padding: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: color-mix(in srgb, var(--b3-theme-background) 88%, var(--b3-theme-primary) 12%);
+        min-height: 100%;
+        box-sizing: border-box;
+    }
+    .na-filter-page::before {
+        content: "";
+        display: block;
+        width: 34px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--b3-border-color);
+        margin: -6px auto 2px;
+        opacity: 0.8;
     }
     .na-filter-page :global(.na-task-filter-bar__filters) {
-        flex-direction: column;
-        align-items: stretch;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
         overflow: visible;
         width: 100%;
+        max-width: 100%;
+        gap: 12px;
+        margin: 0;
+        flex-basis: auto !important;
+        flex-wrap: unset !important;
+    }
+    .na-filter-page :global(.na-task-filter-bar__filters > div) {
+        min-width: 0;
+        width: auto !important;
+    }
+    .na-filter-page :global(.na-filter-dropdown__trigger) {
+        width: 100%;
+        justify-content: space-between;
+        min-height: 44px;
+        padding-inline: 12px;
+        border-radius: 10px;
+        background: var(--b3-theme-surface);
+        box-shadow: var(--na-shadow-sm);
+    }
+    .na-filter-page :global(.na-sort-select) {
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-content: stretch;
+    }
+    .na-filter-page :global(.na-sort-select__trigger) {
+        flex: 1;
+        min-height: 44px;
+        border-radius: 10px 0 0 10px;
+    }
+    .na-filter-page :global(.na-sort-select__dir-btn) {
+        height: 44px;
+        width: 44px;
+        border-radius: 0 10px 10px 0;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom) {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--b3-theme-surface) 84%, transparent);
+        box-sizing: border-box;
+        gap: 8px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-select) {
+        width: 100% !important;
+        max-width: none;
+        min-width: 0;
+        height: 40px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-input) {
+        grid-column: 1 / -1;
+        width: 100% !important;
+        box-sizing: border-box;
+        height: 40px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom > .na-button) {
+        grid-column: 1 / -1;
+        width: 100% !important;
+        min-height: 40px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__filters > .na-chip) {
+        grid-column: 1 / -1;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom .na-input) {
+        width: auto;
+        min-width: 0;
+    }
+    .na-filter-page :global(.na-task-filter-bar__custom .na-button) {
+        min-height: 44px;
+        border-radius: 10px;
+    }
+    .na-filter-page > :global(.na-button) {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 10px;
+    }
+    @media (max-width: 360px) {
+        .na-filter-page {
+            padding: 12px;
+        }
     }
     .na-task-filter-bar {
         display: flex;

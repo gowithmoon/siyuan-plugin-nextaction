@@ -124,7 +124,7 @@
     --na-font-size-xl: 17px;
     --na-control-height: 44px;
     --na-control-height-sm: 44px;
-    font-size: 14px;
+    font-size: 13px;
     .na-toolbar,
     .na-task-filter-bar {
         flex-wrap: nowrap;
@@ -216,35 +216,34 @@
     }
     .na-task-card {
         height: auto;
-        min-height: 72px;
+        min-height: 56px;
         max-height: none;
         flex-basis: auto;
-        padding: 8px 8px;
+        padding: 6px 8px;
     }
     .na-task-card__content {
-        min-height: 54px;
+        min-height: 42px;
         align-items: flex-start;
     }
     .na-task-card__body {
-        min-height: 48px;
+        min-height: 40px;
     }
     .na-task-card__title-row {
         align-items: flex-start;
-        min-height: 44px;
+        min-height: 20px;
     }
     .na-task-card__title-composite {
-        display: -webkit-box;
-        white-space: normal;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
+        display: flex;
+        white-space: nowrap;
     }
     .na-task-card__title {
-        font-size: 14px;
-        line-height: 19px;
-        white-space: normal;
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
+        font-size: 12px;
+        line-height: 17px;
+        white-space: nowrap;
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         text-overflow: ellipsis;
     }
     .na-task-card__meta {
@@ -287,7 +286,7 @@
     }
     .na-mobile-view-picker__header h2 {
         margin: 0;
-        font-size: 18px;
+        font-size: 16px;
     }
     .na-mobile-view-picker .na-view-directory {
         height: auto;
