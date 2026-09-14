@@ -254,10 +254,23 @@
 
 <style lang="scss">
     .na-filter-page {
-        padding: 12px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 14px;
+        background: color-mix(in srgb, var(--b3-theme-background) 88%, var(--b3-theme-primary) 12%);
+        min-height: 100%;
+        box-sizing: border-box;
+    }
+    .na-filter-page::before {
+        content: "";
+        display: block;
+        width: 34px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--b3-border-color);
+        margin: -6px auto 2px;
+        opacity: 0.8;
     }
     .na-filter-page :global(.na-task-filter-bar__filters) {
         display: grid;
@@ -265,7 +278,8 @@
         align-items: start;
         overflow: visible;
         width: 100%;
-        gap: 10px;
+        gap: 12px;
+        margin: 0;
     }
     .na-filter-page :global(.na-task-filter-bar__filters > div) {
         min-width: 0;
@@ -273,7 +287,11 @@
     .na-filter-page :global(.na-filter-dropdown__trigger) {
         width: 100%;
         justify-content: space-between;
-        min-height: 40px;
+        min-height: 44px;
+        padding-inline: 12px;
+        border-radius: 10px;
+        background: var(--b3-theme-surface);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
     }
     .na-filter-page :global(.na-sort-select) {
         grid-column: 1 / -1;
@@ -282,24 +300,52 @@
     }
     .na-filter-page :global(.na-sort-select__trigger) {
         flex: 1;
-        min-height: 40px;
+        min-height: 44px;
+        border-radius: 10px 0 0 10px;
     }
     .na-filter-page :global(.na-sort-select__dir-btn) {
-        height: 40px;
-        width: 40px;
+        height: 44px;
+        width: 44px;
+        border-radius: 0 10px 10px 0;
     }
     .na-filter-page :global(.na-task-filter-bar__custom) {
         grid-column: 1 / -1;
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
         width: 100%;
+        padding: 10px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--b3-theme-surface) 84%, transparent);
+    }
+    .na-filter-page :global(.na-task-filter-bar__filters > .na-chip) {
+        grid-column: 1 / -1;
     }
     .na-filter-page :global(.na-task-filter-bar__custom .na-input) {
         width: auto;
         min-width: 0;
     }
     .na-filter-page :global(.na-task-filter-bar__custom .na-button) {
-        min-height: 40px;
+        min-height: 44px;
+        border-radius: 10px;
+    }
+    .na-filter-page > :global(.na-button) {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 10px;
+    }
+    @media (max-width: 360px) {
+        .na-filter-page {
+            padding: 12px;
+        }
+        .na-filter-page :global(.na-task-filter-bar__filters) {
+            grid-template-columns: 1fr;
+        }
+        .na-filter-page :global(.na-sort-select),
+        .na-filter-page :global(.na-task-filter-bar__custom),
+        .na-filter-page :global(.na-task-filter-bar__filters > .na-chip) {
+            grid-column: 1;
+        }
     }
     .na-task-filter-bar {
         display: flex;
