@@ -63,6 +63,7 @@
         i18n: any;
         selectedTaskId?: string;
         onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onScheduleEdit?: ((task: TaskCacheEntry) => void) | undefined;
     }
 
     let {
@@ -73,6 +74,7 @@
         i18n,
         selectedTaskId = "",
         onSelectTask = undefined,
+        onScheduleEdit = undefined,
     }: Props = $props();
 
     type ViewMode = "timeline" | "list";
@@ -115,6 +117,14 @@
     );
 
     let filteredTasks = $derived(applyFilters(myDayTasks, filterState, $taskStore.settings.customFields));
+    let scheduledEntries = $derived(
+        myDayEntries.filter((entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null),
+    );
+    let scheduledTasks = $derived(
+        scheduledEntries
+            .map((entry) => $taskStore.allTasks.find((task) => task.blockId === entry.blockId))
+            .filter((task): task is TaskCacheEntry => Boolean(task)),
+    );
 
     let myDaySortOptions = $derived([
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
@@ -161,18 +171,18 @@
         scrollMode="none"
     >
         {#snippet toolbar()}
-            {#if compact}<div class="na-myday-add">
-                    <NaSearchSelect
-                        bind:selected={addSelection}
-                        searchFn={searchAdd}
-                        placeholder={i18n.dockSearchAddTask}
-                        emptyText={i18n.dockSearchHint}
-                        noMatchText={i18n.noMatches}
-                        onChange={addToDay}
-                    />
-                </div>{/if}
             <NaToolbar>
-                <NaMetricStrip items={summaryItems} />
+                {#if compact}<div class="na-myday-add">
+                        <NaSearchSelect
+                            bind:selected={addSelection}
+                            searchFn={searchAdd}
+                            placeholder={i18n.dockSearchAddTask}
+                            emptyText={i18n.dockSearchHint}
+                            noMatchText={i18n.noMatches}
+                            onChange={addToDay}
+                        />
+                    </div>{/if}
+                {#if !workspace?.touch}<NaMetricStrip items={summaryItems} />{/if}
                 <div class="na-toolbar__actions-content">
                     <NaButton size="sm" icon="iconSparkles" onclick={runAiPlanMyDay}
                         >{i18n?.aiPlanMyDay || "自动规划"}</NaButton
@@ -201,22 +211,6 @@
                     onChange={handleFilterChange}
                 />{/if}
         {/snippet}
-        {#if compact && viewMode === "timeline"}
-            <NaAccordion title={i18n.dayScheduleList} count={scheduledCount} open={false}>
-                {#each [...myDayEntries]
-                    .filter((entry) => entry.scheduleStart !== null)
-                    .sort((a, b) => a.scheduleStart! - b.scheduleStart!) as entry (entry.blockId)}
-                    {@const task = $taskStore.allTasks.find((item) => item.blockId === entry.blockId)}
-                    {#if task}<div class="na-myday-schedule-row">
-                            <button onclick={() => onEdit(task)}>{task.title}</button><NaIconButton
-                                symbol="iconCalendar"
-                                label={i18n.scheduleTask}
-                                onclick={() => workspace?.openSchedule?.(task)}
-                            />
-                        </div>{/if}
-                {/each}
-            </NaAccordion>
-        {/if}
         {#if viewMode === "timeline"}
             <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
         {:else}
@@ -234,6 +228,36 @@
                     />
                 {/each}
             </NaTaskList>
+            <div class="na-myday-scheduled">
+                <NaAccordion title={i18n.dayScheduleList} count={scheduledEntries.length} variant="plain">
+                    {#snippet children()}
+                        <NaTaskList>
+                            {#each scheduledTasks as task (task.blockId)}
+                                <div class="na-myday-schedule-row na-myday-scheduled__row">
+                                    <TaskCard
+                                        {task}
+                                        completedOverride={isMyDayEntryDone(
+                                            myDayEntryMap.get(task.blockId),
+                                            task.status,
+                                        )}
+                                        selected={task.blockId === selectedTaskId}
+                                        onSelect={onSelectTask}
+                                        {onEdit}
+                                        {onStatusClick}
+                                        {onContextMenu}
+                                        {i18n}
+                                    />
+                                    {#if onScheduleEdit}<NaButton
+                                            size="sm"
+                                            icon="iconCalendar"
+                                            onclick={() => onScheduleEdit?.(task)}>{i18n.scheduleTask}</NaButton
+                                        >{/if}
+                                </div>
+                            {/each}
+                        </NaTaskList>
+                    {/snippet}
+                </NaAccordion>
+            </div>
         {/if}
     </NaViewShell>
 </div>
@@ -242,21 +266,6 @@
     .na-myday-add {
         padding: 8px 12px;
     }
-    .na-myday-schedule-row {
-        display: flex;
-        align-items: center;
-        padding: 4px 12px;
-    }
-    .na-myday-schedule-row button {
-        flex: 1;
-        text-align: start;
-        min-height: 44px;
-        border: 0;
-        background: transparent;
-        color: var(--na-text-primary);
-        font: inherit;
-    }
-
     .na-view--myday {
         --na-myday-panel-bg: var(--b3-theme-surface);
         --na-myday-panel-border: var(--na-task-card-border, var(--b3-border-color));
@@ -264,5 +273,17 @@
         container-name: myday-view;
         container-type: inline-size;
         background: var(--b3-theme-surface);
+    }
+    .na-myday-scheduled {
+        margin-top: var(--na-space-lg);
+    }
+    .na-myday-scheduled__row {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-md);
+    }
+    .na-myday-scheduled__row :global(.na-task-card) {
+        flex: 1;
+        min-width: 0;
     }
 </style>

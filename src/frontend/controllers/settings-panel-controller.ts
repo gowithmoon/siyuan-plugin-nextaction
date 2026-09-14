@@ -16,6 +16,7 @@ export interface SettingsPanelControllerSnapshot {
     draft: PluginSettings;
     dirty: boolean;
     page: SettingsPage;
+    categoryDetailOpen: boolean;
     loadState: SettingsLoadState;
     saveState: SettingsSaveState;
     error: string;
@@ -49,6 +50,7 @@ export class SettingsPanelController {
             draft: cloneSettings(defaults),
             dirty: false,
             page: "general",
+            categoryDetailOpen: false,
             loadState: "idle",
             saveState: "idle",
             error: "",
@@ -98,7 +100,13 @@ export class SettingsPanelController {
     }
 
     setPage(page: SettingsPage): void {
-        this.patch({ page });
+        this.patch({ page, categoryDetailOpen: true });
+    }
+
+    backToCategories(): boolean {
+        if (!this.state.categoryDetailOpen) return false;
+        this.patch({ categoryDetailOpen: false });
+        return true;
     }
 
     async save(persist: (settings: PluginSettings) => Promise<PluginSettings>): Promise<PluginSettings | null> {

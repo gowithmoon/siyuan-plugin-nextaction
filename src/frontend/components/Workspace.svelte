@@ -78,6 +78,8 @@
     };
     let scheduleEntry = $derived($taskStore.myDayState?.tasks.find((entry) => entry.blockId === scheduleTask?.blockId));
     let catalog = $derived($session.catalog);
+    let mobileActionsOpen = $state(false);
+    let mobileViewPickerOpen = $state(false);
     let root: HTMLDivElement;
     let createOptions = $state<{ parentTask: TaskCacheEntry | null; initialActionKind: "action" | "stage" } | null>(
         null,
@@ -86,6 +88,14 @@
     let parentDetail: TaskCacheEntry | null = null;
     let projectComponent: ProjectView | null = $state(null);
     function back() {
+        if (mobileViewPickerOpen) {
+            mobileViewPickerOpen = false;
+            return;
+        }
+        if (mobileActionsOpen) {
+            mobileActionsOpen = false;
+            return;
+        }
         if (touch && selectedTask) {
             void requestDetailClose();
             return;
@@ -94,10 +104,21 @@
         session.back();
     }
     function showCatalog() {
+        if (touch) {
+            // Keep the project workspace mounted while the mobile directory is open.
+            // This preserves its mode and drill-down state when returning from a quick view.
+            if (activeView === VIEW_MY_DAY) session.openView(VIEW_BY_PROJECT);
+            mobileViewPickerOpen = true;
+            mobileActionsOpen = false;
+            return;
+        }
         session.openCatalog();
     }
     function resumeCatalog() {
         session.resumeCatalog();
+    }
+    function closeMobileViewPicker() {
+        mobileViewPickerOpen = false;
     }
     function handleKeydown(event: KeyboardEvent) {
         if (!compact || event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
@@ -105,6 +126,33 @@
         if (!root?.contains(document.activeElement)) return;
         event.preventDefault();
         back();
+    }
+
+    // Keep the mobile dock in the browser history so the system back gesture
+    // closes the deepest in-app surface before leaving the host page.
+    function handlePopState() {
+        if (!touch) return;
+        back();
+        history.pushState({ nextactionMobile: true }, "", location.href);
+    }
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    function handleTouchStart(event: TouchEvent) {
+        if (!touch || event.touches.length !== 1) return;
+        touchStartX = event.touches[0].clientX;
+        touchStartY = event.touches[0].clientY;
+    }
+    function handleTouchEnd(event: TouchEvent) {
+        if (!touch || event.changedTouches.length !== 1) return;
+        const point = event.changedTouches[0];
+        const dx = point.clientX - touchStartX;
+        const dy = point.clientY - touchStartY;
+        touchStartX = 0;
+        touchStartY = 0;
+        // iOS/Android edge-back equivalent. Require a predominantly horizontal
+        // right swipe and avoid stealing vertical list scrolling.
+        if (dx >= 72 && Math.abs(dx) > Math.abs(dy) * 1.35) back();
     }
 
     let activeView = $derived($session.activeView);
@@ -122,6 +170,12 @@
     // and local derivation in applyUpdate/applyChangeSetV2. This timer
     // only handles edge cases where incremental updates might diverge.
     onMount(() => {
+        if (touch) {
+            history.pushState({ nextactionMobile: true }, "", location.href);
+            window.addEventListener("popstate", handlePopState);
+            root?.addEventListener("touchstart", handleTouchStart, { passive: true });
+            root?.addEventListener("touchend", handleTouchEnd, { passive: true });
+        }
         refreshTimer = setInterval(() => {
             if (document.visibilityState === "visible") {
                 taskStore.loadTasks();
@@ -130,6 +184,11 @@
     });
 
     onDestroy(() => {
+        if (touch) {
+            window.removeEventListener("popstate", handlePopState);
+            root?.removeEventListener("touchstart", handleTouchStart);
+            root?.removeEventListener("touchend", handleTouchEnd);
+        }
         if (refreshTimer) clearInterval(refreshTimer);
     });
 
@@ -447,7 +506,12 @@
 >
     {#if !compact}<NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />{/if}
 
-    <div class="na-app__center">
+    <div
+        class="na-app__center"
+        inert={touch && (mobileViewPickerOpen || mobileActionsOpen || selectedTask !== null || createOptions !== null)
+            ? true
+            : undefined}
+    >
         {#if compact}
             <div class="na-workspace__header">
                 {#if $session.canBack && !catalog}<NaIconButton
@@ -457,8 +521,24 @@
                     />{/if}
                 <h1>{catalog ? i18n.allViews : activeViewMeta.label}</h1>
                 <NaIconButton symbol="iconAdd" label={i18n.createTask} onclick={() => openCreate()} />
-                <NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />
-                {#if !touch}<NaIconButton symbol="iconList" label={i18n.allViews} onclick={showCatalog} />{/if}
+                {#if !touch}<NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />{/if}
+                {#if touch}<NaIconButton
+                        symbol="iconMore"
+                        label="更多"
+                        onclick={() => (mobileActionsOpen = !mobileActionsOpen)}
+                    />{/if}
+                {#if touch && mobileActionsOpen}
+                    <div class="na-mobile-actions" role="menu">
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onclick={() => {
+                                mobileActionsOpen = false;
+                                void handleRefresh();
+                            }}>{i18n.refreshTasks}</button
+                        >
+                    </div>
+                {/if}
             </div>
             {#if !touch}<CompactNavigation
                     {i18n}
@@ -511,6 +591,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onScheduleEdit={workspace.openSchedule}
                     {i18n}
                 />
             {:else if activeView === VIEW_ALL_TASKS}
@@ -588,14 +669,44 @@
         </div>
     </div>
 
-    {#if touch}<CompactNavigation
-            {i18n}
-            {activeView}
-            {catalog}
-            bottom
-            onSwitch={switchView}
-            onCatalog={resumeCatalog}
-        />{/if}
+    {#if touch}<div inert={mobileViewPickerOpen || selectedTask !== null || createOptions !== null ? true : undefined}>
+            <CompactNavigation {i18n} {activeView} {catalog} bottom onSwitch={switchView} onCatalog={showCatalog} />
+        </div>{/if}
+    {#if touch && mobileViewPickerOpen}
+        <div class="na-mobile-view-picker" role="dialog" aria-modal="true" aria-label={i18n.allViews}>
+            <button class="na-mobile-view-picker__scrim" aria-label={i18n.cancel} onclick={closeMobileViewPicker}
+            ></button>
+            <div class="na-mobile-view-picker__sheet">
+                <div class="na-mobile-view-picker__header">
+                    <h2>{i18n.allViews}</h2>
+                    <NaIconButton symbol="iconClose" label={i18n.cancel} onclick={closeMobileViewPicker} />
+                </div>
+                {#if activeView !== VIEW_BY_PROJECT}
+                    <div class="na-project-compact-toolbar na-mobile-view-picker__resume">
+                        <NaButton
+                            size="sm"
+                            icon="iconProject"
+                            onclick={() => {
+                                closeMobileViewPicker();
+                                switchView(VIEW_BY_PROJECT);
+                            }}>{i18n.projectList}</NaButton
+                        >
+                    </div>
+                {/if}
+                <CompactNavigation
+                    {i18n}
+                    {activeView}
+                    catalog={false}
+                    directoryOnly
+                    onSwitch={(view) => {
+                        closeMobileViewPicker();
+                        switchView(view);
+                    }}
+                    onCatalog={closeMobileViewPicker}
+                />
+            </div>
+        </div>
+    {/if}
     {#if scheduleTask && scheduleEntry}<NaMyDayScheduleEditor
             task={scheduleTask}
             entry={scheduleEntry}

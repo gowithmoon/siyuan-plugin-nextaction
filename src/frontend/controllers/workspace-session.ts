@@ -2,7 +2,10 @@ import { get, writable } from "svelte/store";
 import { STATUS_LIST, type ViewType } from "../constants";
 import { DEFAULT_FILTER_STATE, type FilterState } from "../utils/filter";
 
-export const QUICK_VIEWS: ViewType[] = ["nextAction", "myDay", "inbox"];
+// Views that remain directly reachable from the mobile bottom navigation.
+// Keep this list in the same order as the five-item mobile navigation (the
+// fifth item is the catalog button rendered by CompactNavigation).
+export const QUICK_VIEWS: ViewType[] = ["nextAction", "myDay", "inbox", "all"];
 type Location = { activeView: ViewType; catalog: boolean };
 
 export function createWorkspaceSession() {

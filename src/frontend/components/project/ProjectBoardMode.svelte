@@ -304,7 +304,7 @@
         </div>
     </div>
     {#if narrow}
-        <div class="na-project-board__pager">
+        <div class="na-project-board__pager na-project-board__pager--narrow">
             <NaIconButton
                 symbol="iconLeft"
                 label={i18n?.previousPage || "Previous"}
@@ -528,6 +528,18 @@
         font-size: var(--na-font-size-xs);
         text-align: center;
     }
+    .na-project-board__columns--narrow {
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+        overflow-x: hidden;
+    }
+    .na-project-board__pager--narrow {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 44px;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
     @container nextaction-app (max-width: 780px) {
         .na-project-board {
             min-width: 0;
@@ -540,7 +552,7 @@
         }
         .na-project-board__pager {
             display: grid;
-            grid-template-columns: 30px minmax(0, 1fr) 30px;
+            grid-template-columns: 44px minmax(0, 1fr) 44px;
             align-items: center;
             gap: 8px;
             margin-bottom: 8px;

@@ -19,12 +19,26 @@
         backLabel: string;
         onBack: () => void;
         chrome?: boolean;
+        mode?: "page" | "sheet";
         children: Snippet;
         actions?: Snippet;
     }
-    let { title, backLabel, onBack, chrome = true, children, actions = undefined }: Props = $props();
+    let { title, backLabel, onBack, chrome = true, mode = "page", children, actions = undefined }: Props = $props();
     let element: HTMLDivElement;
     onMount(() => {
+        const viewport = window.visualViewport;
+        const updateViewport = () => {
+            if (!viewport) return;
+            element.style.setProperty("--na-viewport-height", `${viewport.height}px`);
+            element.style.setProperty("--na-viewport-offset-top", `${viewport.offsetTop}px`);
+            element.style.setProperty(
+                "--na-viewport-offset-bottom",
+                `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`,
+            );
+        };
+        updateViewport();
+        viewport?.addEventListener("resize", updateViewport);
+        viewport?.addEventListener("scroll", updateViewport);
         const previous = document.activeElement as HTMLElement | null;
         const parent = element.parentElement;
         const root = element.closest(".na-app") || parent;
@@ -35,7 +49,16 @@
         stacks.set(root, stack);
         reconcile(root, stack);
         element.focus();
+        const focusVisible = (event: FocusEvent) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement) || target === element) return;
+            requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
+        };
+        element.addEventListener("focusin", focusVisible);
         return () => {
+            viewport?.removeEventListener("resize", updateViewport);
+            viewport?.removeEventListener("scroll", updateViewport);
+            element.removeEventListener("focusin", focusVisible);
             stack.pages = stack.pages.filter((page) => page !== element);
             stack.background.delete(element);
             element.remove();
@@ -76,6 +99,7 @@
 
 <div
     class="na-page-host"
+    class:na-page-host--sheet={mode === "sheet"}
     bind:this={element}
     role="dialog"
     aria-modal="true"
@@ -102,6 +126,10 @@
         min-height: 0;
         background: var(--b3-theme-background);
         color: var(--na-text-primary);
+        height: var(--na-viewport-height, 100%);
+        max-height: 100%;
+        transform: translateY(var(--na-viewport-offset-top, 0px));
+        padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
         box-sizing: border-box;
     }
@@ -126,5 +154,38 @@
         min-height: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
+    }
+    .na-page-host--sheet {
+        inset: auto 0 0;
+        max-height: min(78dvh, 720px);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 32px color-mix(in srgb, var(--b3-theme-on-background) 22%, transparent);
+    }
+    .na-page-host--sheet::before {
+        content: "";
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 36px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--b3-border-color);
+        transform: translateX(-50%);
+    }
+    .na-page-host--sheet .na-page-host__header {
+        padding-top: 16px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .na-page-host--sheet {
+            animation: na-sheet-in 180ms ease-out;
+        }
+        @keyframes na-sheet-in {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
     }
 </style>

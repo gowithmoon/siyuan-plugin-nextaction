@@ -8,10 +8,12 @@
     export let icon = "";
     export let compact = false;
     export let actions: Snippet | undefined = undefined;
+    export let leading: Snippet | undefined = undefined;
 </script>
 
 <header class="na-panel-header" class:na-panel-header--compact={compact}>
     <div class="na-panel-header__copy">
+        {#if leading}{@render leading()}{/if}
         {#if icon}
             <span class="na-panel-header__icon"><NaIcon symbol={icon} size={compact ? 15 : 17} /></span>
         {/if}

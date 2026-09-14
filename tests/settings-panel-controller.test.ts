@@ -45,6 +45,20 @@ test("saved 与 draft 比较驱动脏状态并保留当前页面", () => {
     assert.equal(model.snapshot.page, "ai");
 });
 
+test("移动设置从分类进入详情并返回时保留草稿与当前分类", () => {
+    const model = controller();
+    model.load(DEFAULT_SETTINGS);
+    model.edit({ ...model.snapshot.draft, defaultImportance: 8 });
+    model.setPage("advanced");
+    assert.equal(model.snapshot.categoryDetailOpen, true);
+    assert.equal(model.backToCategories(), true);
+    assert.equal(model.snapshot.categoryDetailOpen, false);
+    assert.equal(model.snapshot.page, "advanced");
+    assert.equal(model.snapshot.draft.defaultImportance, 8);
+    assert.equal(model.snapshot.dirty, true);
+    assert.equal(model.backToCategories(), false);
+});
+
 test("持久化成功立即清除脏状态且后处理错误不会重新变脏", async () => {
     const model = controller();
     model.load(DEFAULT_SETTINGS);

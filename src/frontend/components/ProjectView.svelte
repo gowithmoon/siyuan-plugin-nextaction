@@ -40,6 +40,7 @@
     const taskStore = useWorkspaceTasks();
     const workspace = useWorkspace();
     const compact = workspace?.compact ?? false;
+    const mobile = workspace?.touch ?? false;
     const saved = workspace?.session.read<Record<string, any>>("projects", {}) || {};
     let level = $state<"list" | "project" | "risks">(saved.level || "list");
     let returnLevel: "list" | "risks" = saved.returnLevel || "list";
@@ -48,6 +49,14 @@
     let actionMenuOpen = $state(false);
     let projectModes: Record<string, ProjectViewMode> = saved.projectModes || {};
     export function back(): boolean {
+        if (actionMenuOpen) {
+            actionMenuOpen = false;
+            return true;
+        }
+        if (filtersOpen) {
+            filtersOpen = false;
+            return true;
+        }
         if (!compact || level === "list") return false;
         if (level === "project" && returnToSource) {
             returnToSource = false;
@@ -336,25 +345,31 @@
     emptyAction={anyFiltersActive
         ? { label: i18n?.clearFilters || "Clear filters", onClick: clearAllFilters }
         : undefined}
-    hint={i18n?.viewHintProject}
+    hint={mobile ? "" : i18n?.viewHintProject}
+    scrollMode={compact ? "none" : "content"}
 >
     {#snippet toolbar()}
         {#if compact}
             <div class="na-project-compact-toolbar">
                 {#if level !== "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
+                {#if mobile && level === "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
                 {#if level === "project"}
-                    <select
-                        class="na-select"
-                        aria-label={i18n.projectViewMode}
-                        value={mode}
-                        onchange={(event) => handleModeChange(event.currentTarget.value)}
-                    >
-                        <option value="overview">{i18n.projectViewOverview}</option><option value="hierarchy"
-                            >{i18n.projectViewHierarchy}</option
-                        ><option value="board">{i18n.projectViewBoard}</option><option value="plan"
-                            >{i18n.projectViewPlan}</option
-                        ><option value="gantt">{i18n.projectViewGantt}</option>
-                    </select>
+                    {#if mobile}
+                        <span class="na-project-compact-title">{selectedSummary?.project.title || i18n.untitled}</span>
+                    {:else}
+                        <select
+                            class="na-select"
+                            aria-label={i18n.projectViewMode}
+                            value={mode}
+                            onchange={(event) => handleModeChange(event.currentTarget.value)}
+                        >
+                            <option value="overview">{i18n.projectViewOverview}</option><option value="hierarchy"
+                                >{i18n.projectViewHierarchy}</option
+                            ><option value="board">{i18n.projectViewBoard}</option><option value="plan"
+                                >{i18n.projectViewPlan}</option
+                            ><option value="gantt">{i18n.projectViewGantt}</option>
+                        </select>
+                    {/if}
                     <NaIconButton
                         symbol="iconAdd"
                         label={i18n.createChildTask}
@@ -372,8 +387,33 @@
                             >{i18n.projectRiskQueue} {riskItems.length}</NaButton
                         >{/if}
                 {/if}
-                <NaIconButton symbol="iconFilter" label={i18n.filterAndSort} onclick={() => (filtersOpen = true)} />
+                {#if !mobile}<NaIconButton
+                        symbol="iconFilter"
+                        label={i18n.filterAndSort}
+                        onclick={() => (filtersOpen = true)}
+                    />{:else if level !== "project"}<NaIconButton
+                        symbol="iconMore"
+                        label={i18n.projectFilterRisk}
+                        onclick={() => (filtersOpen = true)}
+                    />{/if}
             </div>
+            {#if mobile && level === "project"}
+                <div class="na-project-mobile-modes">
+                    <NaSegmentControl
+                        stretch
+                        value={mode}
+                        label={i18n.projectViewMode}
+                        options={[
+                            { value: "overview", label: i18n.projectViewOverview },
+                            { value: "board", label: i18n.projectViewBoard },
+                            { value: "plan", label: i18n.projectViewPlan },
+                            { value: "hierarchy", label: i18n.projectViewHierarchy },
+                            { value: "gantt", label: i18n.projectViewGantt },
+                        ]}
+                        onChange={handleModeChange}
+                    />
+                </div>
+            {/if}
             {#if level === "list"}<NaTaskFilterBar
                     contexts={$taskStore.contexts}
                     tags={$taskStore.tags}
@@ -501,10 +541,11 @@
     >
         {#if !compact || level === "list"}
             <aside class="na-project-index" aria-label={i18n?.projectList || "Project list"}>
-                <div class="na-project-index__header">
-                    <span>{i18n?.projectList || "Projects"}</span>
-                    <span class="na-project-index__count">{visibleSummaries.length}</span>
-                </div>
+                {#if !mobile}<div class="na-project-index__header">
+                        <span>{i18n?.projectList || "Projects"}</span>
+                        <span class="na-project-index__count">{visibleSummaries.length}</span>
+                    </div>
+                {/if}
                 <div class="na-project-index__scroll" use:rememberScroll={"index"}>
                     {#each visibleSummaries as summary (summary.project.blockId)}
                         <button
@@ -540,33 +581,34 @@
                 class:na-project-canvas--gantt={mode === "gantt"}
             >
                 {#if selectedSummary}
-                    <div class="na-project-canvas__header">
-                        <div class="na-project-canvas__title">
-                            <span class="na-project-canvas__kicker">{i18n?.project || "Project"}</span>
-                            <h2>{selectedSummary.project.title || i18n?.untitled || "(untitled)"}</h2>
-                            <span
-                                >{selectedSummary.openCount}
-                                {i18n?.projectOpenTasks || "open tasks"} · {selectedSummary.risks.length}
-                                {i18n?.projectRisks || "risks"}</span
-                            >
+                    {#if !mobile}<div class="na-project-canvas__header">
+                            <div class="na-project-canvas__title">
+                                <span class="na-project-canvas__kicker">{i18n?.project || "Project"}</span>
+                                <h2>{selectedSummary.project.title || i18n?.untitled || "(untitled)"}</h2>
+                                <span
+                                    >{selectedSummary.openCount}
+                                    {i18n?.projectOpenTasks || "open tasks"} · {selectedSummary.risks.length}
+                                    {i18n?.projectRisks || "risks"}</span
+                                >
+                            </div>
+                            <div class="na-project-canvas__actions">
+                                <NaBadge
+                                    text={statusLabel(selectedSummary.project.status)}
+                                    tone={statusTone(selectedSummary.project.status)}
+                                />
+                                <NaButton size="sm" onclick={() => onEdit(selectedSummary.project)}
+                                    >{i18n?.editProject || "Edit project"}</NaButton
+                                >
+                            </div>
                         </div>
-                        <div class="na-project-canvas__actions">
-                            <NaBadge
-                                text={statusLabel(selectedSummary.project.status)}
-                                tone={statusTone(selectedSummary.project.status)}
-                            />
-                            <NaButton size="sm" onclick={() => onEdit(selectedSummary.project)}
-                                >{i18n?.editProject || "Edit project"}</NaButton
-                            >
-                        </div>
-                    </div>
+                    {/if}
                     {#snippet projectProgress()}
                         <NaProgressBar
                             percent={selectedSummary.progress}
                             label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
                         />
                     {/snippet}
-                    {#if mode !== "board"}
+                    {#if mode !== "board" && (!mobile || mode === "overview")}
                         <div class="na-project-canvas__progress">{@render projectProgress()}</div>
                     {/if}
                     {#if shouldShowProjectCompletionPanel(selectedSummary)}
@@ -646,7 +688,7 @@
                         />
                     {:else if mode === "board"}
                         <ProjectBoardMode
-                            progress={projectProgress}
+                            progress={mobile ? undefined : projectProgress}
                             projectId={selectedSummary.project.blockId}
                             tasks={boardTasks}
                             projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
@@ -727,6 +769,32 @@
 {#if actionMenuOpen && selectedSummary}
     <NaPageHost title={i18n.taskActions} backLabel={i18n.back} onBack={() => (actionMenuOpen = false)}>
         <div class="na-page-stack na-project-actions">
+            {#if mobile}
+                <NaButton
+                    onclick={() => {
+                        handleModeChange("hierarchy");
+                        actionMenuOpen = false;
+                    }}>{i18n.projectViewHierarchy}</NaButton
+                >
+                <NaButton
+                    onclick={() => {
+                        handleModeChange("gantt");
+                        actionMenuOpen = false;
+                    }}>{i18n.projectViewGantt}</NaButton
+                >
+                <NaButton
+                    onclick={() => {
+                        actionMenuOpen = false;
+                        filtersOpen = true;
+                    }}>{i18n.filterAndSort}</NaButton
+                >
+                <NaButton
+                    onclick={(event) => {
+                        actionMenuOpen = false;
+                        onStatusClick(selectedSummary!.project, event);
+                    }}>{i18n.status}</NaButton
+                >
+            {/if}
             <NaButton
                 onclick={() => {
                     actionMenuOpen = false;
@@ -777,6 +845,35 @@
     .na-project-compact-toolbar > select {
         flex: 1;
         min-width: 0;
+    }
+    .na-project-compact-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    .na-project-mobile-modes {
+        padding: 0 8px 8px;
+        min-width: 0;
+    }
+    .na-project-mobile-modes :global(.na-segment-control__option) {
+        min-height: 44px;
+        padding: 4px 8px;
+    }
+    .na-project-mobile-modes__secondary {
+        display: block;
+        padding-top: 4px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+    }
+    .na-project-workspace--compact .na-project-index {
+        display: flex;
+        flex-direction: column;
+    }
+    .na-project-workspace--compact .na-project-index__scroll {
+        flex: 1;
+        min-height: 0;
+        overscroll-behavior: contain;
     }
     .na-project-actions {
         padding: 12px;

@@ -56,6 +56,10 @@
     let originClientX: number = 0;
     let previewOffsetX: number = $state(0);
     let isDragging: boolean = $state(false);
+    let suppressClick = false;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressActive = false;
+    let lastTapAt = 0;
 
     let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
     let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
@@ -90,9 +94,14 @@
     let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
-        if (workspace?.touch || e.pointerType === "touch" || e.button !== 0) return;
-        e.preventDefault();
+        if (e.pointerType !== "touch" && e.button !== 0) return;
         e.stopPropagation();
+        if (workspace?.touch) {
+            longPressActive = false;
+            longPressTimer = setTimeout(() => {
+                longPressActive = true;
+            }, 420);
+        }
         dragMode = mode;
         pointerId = e.pointerId;
         originClientY = e.clientY;
@@ -103,7 +112,11 @@
         previewEnd = originEnd;
         previewOffsetX = 0;
         isDragging = false;
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            // Synthetic events may not have an active pointer to capture.
+        }
     }
 
     function handlePointerMove(e: PointerEvent) {
@@ -116,6 +129,17 @@
         }
 
         if (!isDragging) return;
+        e.preventDefault();
+
+        if (workspace?.touch) {
+            const timeline = document.querySelector<HTMLElement>(".na-timeline-column");
+            if (timeline) {
+                const rect = timeline.getBoundingClientRect();
+                const edge = 64;
+                if (e.clientY < rect.top + edge) timeline.scrollTop -= 14;
+                else if (e.clientY > rect.bottom - edge) timeline.scrollTop += 14;
+            }
+        }
 
         if (dragMode === "move") {
             const newStart = snapMinute(originStart + dm);
@@ -140,7 +164,22 @@
         if (dragMode === "none") return;
         const currentMode = dragMode;
         dragMode = "none";
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
 
+        if (!isDragging && workspace?.touch) {
+            if (!longPressActive) {
+                const now = Date.now();
+                if (now - lastTapAt < 320) workspace.openTask?.(task);
+                else openQuickMenu(e);
+                lastTapAt = now;
+            }
+            longPressActive = false;
+            isDragging = false;
+            return;
+        }
         if (!isDragging) {
             showTaskQuickMenu(
                 task,
@@ -165,6 +204,7 @@
             return;
         }
 
+        suppressClick = true;
         isDragging = false;
 
         const elUnderPointer = document.elementFromPoint(e.clientX, e.clientY);
@@ -195,8 +235,28 @@
     }
 
     function handleContextMenu(event: MouseEvent): void {
+        if (workspace?.touch) {
+            event.preventDefault();
+            return;
+        }
         event.preventDefault();
         onContextMenu(task, event);
+    }
+
+    function openQuickMenu(event: MouseEvent) {
+        showTaskQuickMenu(
+            task,
+            event.clientX,
+            event.clientY,
+            bridge,
+            i18n,
+            {
+                onScheduleRemoved: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+                onTaskUpdated: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
+                onRemovedFromMyDay: (newState: MyDayState) => taskStore.applyMyDayUpdate(newState),
+            },
+            isDone,
+        );
     }
 
     function handleResizePointerDown(event: PointerEvent, mode: "resize-start" | "resize-end"): void {
@@ -209,7 +269,15 @@
     class="na-timeline-card {priorityClass}"
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
-        if (workspace?.touch || ("pointerType" in event && event.pointerType === "touch")) workspace?.openTask?.(task);
+        if (workspace?.touch) {
+            event.preventDefault();
+            return;
+        }
+    }}
+    ondblclick={(event) => {
+        if (!workspace?.touch) return;
+        event.preventDefault();
+        workspace.openTask?.(task);
     }}
     class:na-timeline-card--dragging={isDragging}
     class:na-timeline-card--removing={isRemoving}
@@ -271,7 +339,7 @@
 
 <style lang="scss">
     .na-timeline-card--touch {
-        touch-action: pan-y !important;
+        touch-action: none !important;
     }
     .na-timeline-card--touch .na-timeline-card__handle {
         display: none;

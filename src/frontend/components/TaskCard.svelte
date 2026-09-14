@@ -215,22 +215,34 @@
                     </NaTooltip>
                 {/if}
                 {#if isStage}<span class="na-task-card__kind">{i18n?.actionKindStage || "Stage"}</span>{/if}
-                <NaTooltip text={compositeTitle} fill>
+                {#if workspace?.touch}
                     <span
                         class="na-task-card__title-composite"
                         class:na-task-card__title-composite--has-parent={Boolean(parentTitle && isRoot)}
                     >
-                        <span class="na-task-card__title" class:untitled={!task.title}>
-                            {taskTitle}
-                        </span>
-                        {#if parentTitle && isRoot}
-                            <span class="na-task-card__parent-context">
-                                <span class="na-task-card__parent-separator" aria-hidden="true">—</span>
-                                <span class="na-task-card__parent-title">{parentTitle}</span>
-                            </span>
-                        {/if}
+                        <span class="na-task-card__title" class:untitled={!task.title}>{taskTitle}</span>
+                        {#if parentTitle && isRoot}<span class="na-task-card__parent-context"
+                                ><span class="na-task-card__parent-separator" aria-hidden="true">—</span><span
+                                    class="na-task-card__parent-title">{parentTitle}</span
+                                ></span
+                            >{/if}
                     </span>
-                </NaTooltip>
+                {:else}<NaTooltip text={compositeTitle} fill>
+                        <span
+                            class="na-task-card__title-composite"
+                            class:na-task-card__title-composite--has-parent={Boolean(parentTitle && isRoot)}
+                        >
+                            <span class="na-task-card__title" class:untitled={!task.title}>
+                                {taskTitle}
+                            </span>
+                            {#if parentTitle && isRoot}
+                                <span class="na-task-card__parent-context">
+                                    <span class="na-task-card__parent-separator" aria-hidden="true">—</span>
+                                    <span class="na-task-card__parent-title">{parentTitle}</span>
+                                </span>
+                            {/if}
+                        </span>
+                    </NaTooltip>{/if}
                 {#if priorityLabel}
                     <NaTooltip text={priorityLabel}>
                         <span class="na-task-card__priority" style="--na-task-priority-color: {priorityTextColor}">

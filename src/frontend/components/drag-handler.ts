@@ -34,7 +34,11 @@ export function createDragHandler(config: DragConfig) {
         startY = e.clientY;
         dragBlockId = blockId;
         pointerId = e.pointerId;
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        try {
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        } catch {
+            // Synthetic events and detached elements may not have an active pointer.
+        }
         document.addEventListener("pointermove", onPointerMove);
         document.addEventListener("pointerup", onPointerUp);
     }

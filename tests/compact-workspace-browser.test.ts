@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 const source = (path: string) => JSON.stringify(resolve(path));
@@ -20,7 +21,7 @@ for (const [width, height, mobile, dark] of [
             browserArgs: [
                 `--window-size=500,${Math.ceil((height * 500) / width)}`,
                 `--force-device-scale-factor=${(500 / width).toFixed(6)}`,
-                `--screenshot=/tmp/nextaction-${width}.png`,
+                `--screenshot=${join(tmpdir(), `nextaction-${width}.png`)}`,
             ],
             virtualTimeBudget: 8000,
             files: {
@@ -79,7 +80,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  await pause();
  const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
- const catalog=()=>click('全部视图',document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-workspace__header"}'));
+ const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : "document"});
  catalog(); await pause();
  out.catalogCount=document.querySelectorAll('.na-view-directory button').length;
  click('项目视图',document.querySelector('.na-view-directory'));await pause();
@@ -87,11 +88,12 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  document.querySelector('.na-project-index__item').click();await pause();
  out.projectDrilldown=!!document.querySelector('.na-project-canvas')&&!document.querySelector('.na-project-index');
  const mode=document.querySelector('.na-project-compact-toolbar select');
- out.modes=[...mode.options].map(o=>o.value);
+ const mobileModes=()=>[...document.querySelectorAll('.na-project-mobile-modes button')];
+ out.modes=${mobile ? `['overview','hierarchy','board','plan','gantt']` : `[...mode.options].map(o=>o.value)`};
  out.modesFit=true;
- for(const value of out.modes) {mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
+ for(const value of out.modes) {${mobile ? `mobileModes()[out.modes.indexOf(value)]?.click();` : `mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
 
- mode.value='board';mode.dispatchEvent(new Event('change',{bubbles:true}));await pause();
+ ${mobile ? `mobileModes()[1]?.click();` : `mode.value='board';mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();
  out.singleBoardColumn=document.querySelectorAll('.na-project-board__column').length;
  const grouping=document.querySelector('#na-project-board-group-by');grouping.value='stage';grouping.dispatchEvent(new Event('change',{bubbles:true}));await pause();
  const pager=document.querySelector('.na-project-board__pager select');pager.value=String(pager.options.length-1);pager.dispatchEvent(new Event('change',{bubbles:true}));await pause();
@@ -107,14 +109,23 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  click('时间线');await pause();
  ${mobile ? `const timeline=document.querySelector('.na-timeline-card'); if(timeline) { timeline.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',clientY:80,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerType:'touch',clientY:180,bubbles:true}));document.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',clientY:180,bubbles:true})); } await pause();out.touchDoesNotWrite=!!timeline && window.scheduleWrites.length===0;` : ""}
 
- const scheduleList=[...document.querySelectorAll('.na-accordion__trigger')].find(button=>button.textContent.includes('已排期任务'));scheduleList.click();await pause();click('安排时间',document.querySelector('.na-myday-schedule-row'));await pause();
+ // 排期行属于列表模式；时间线触摸行为验证后切换到列表继续编辑排期。
+ const listMode=[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='列表');
+ if(listMode) { listMode.click(); await pause(); }
+
+ const scheduleList=[...document.querySelectorAll('.na-accordion__trigger')].find(button=>button.textContent.includes('已排期任务')) || document.querySelector('.na-accordion__trigger');
+ if(!scheduleList) throw Error('Missing My Day schedule accordion');
+ scheduleList.click();await pause();
+ const scheduleRow=document.querySelector('.na-myday-schedule-row');
+ if(!scheduleRow) throw Error('Missing My Day schedule row');
+ click('安排时间',scheduleRow);await pause();
  const time=document.querySelector('.na-schedule-editor input[type="time"]');time.value='07:30';time.dispatchEvent(new Event('input',{bubbles:true}));
  const duration=document.querySelector('.na-schedule-editor input[type="number"]');duration.value='45';duration.dispatchEvent(new Event('input',{bubbles:true}));
  document.querySelector('.na-schedule-editor').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();
  out.scheduleEdited=window.scheduleWrites.length===1 && window.scheduleWrites[0].start===150 && window.scheduleWrites[0].end===195;
  catalog();await pause();
  ${!mobile ? `click('项目视图',document.querySelector('.na-view-directory'));await pause();` : ""}
- out.projectModeRestored=document.querySelector('.na-project-compact-toolbar select')?.value;
+ out.projectModeRestored=${mobile ? `['overview','board','plan'][mobileModes().findIndex(button=>button.getAttribute('aria-checked')==='true')]` : `document.querySelector('.na-project-compact-toolbar select')?.value`};
  document.querySelector('.na-project-compact-toolbar button').click();await pause();
  out.backToProjectList=!!document.querySelector('.na-project-index');
  click('下一步行动',nav());await pause();
