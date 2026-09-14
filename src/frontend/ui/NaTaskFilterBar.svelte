@@ -278,6 +278,7 @@
         align-items: start;
         overflow: visible;
         width: 100%;
+        max-width: 100%;
         gap: 12px;
         margin: 0;
         flex-basis: auto !important;
@@ -294,7 +295,7 @@
         padding-inline: 12px;
         border-radius: 10px;
         background: var(--b3-theme-surface);
-        box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+        box-shadow: var(--na-shadow-sm);
     }
     .na-filter-page :global(.na-sort-select) {
         grid-column: 1 / -1;
@@ -360,14 +361,6 @@
     @media (max-width: 360px) {
         .na-filter-page {
             padding: 12px;
-        }
-        .na-filter-page :global(.na-task-filter-bar__filters) {
-            grid-template-columns: 1fr;
-        }
-        .na-filter-page :global(.na-sort-select),
-        .na-filter-page :global(.na-task-filter-bar__custom),
-        .na-filter-page :global(.na-task-filter-bar__filters > .na-chip) {
-            grid-column: 1;
         }
     }
     .na-task-filter-bar {
