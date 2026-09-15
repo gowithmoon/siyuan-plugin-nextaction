@@ -6,12 +6,12 @@ function source(path: string): string {
     return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
-const dockInboxSource = source("../src/frontend/components/InboxView.svelte");
-const dockSidebarSource = source("../src/frontend/components/Workspace.svelte");
+const dockInboxSource = source("../src/frontend/components/DockInbox.svelte");
+const dockSidebarSource = source("../src/frontend/components/DockSidebar.svelte");
 const taskCardSource = source("../src/frontend/components/TaskCard.svelte");
 
 test("侧边栏收集箱为开始按钮接入状态更新", () => {
-    assert.match(dockSidebarSource, /<InboxView[\s\S]*?\{bridge\}/);
+    assert.match(dockSidebarSource, /<DockInbox[\s\S]*?\{bridge\}/);
     assert.match(dockInboxSource, /bridge: KernelBridge/);
     assert.match(dockInboxSource, /}: Props = \$props\(\)/);
     assert.match(dockInboxSource, /bridge\.updateTask\(task\.blockId, \{ "na-status": "todo" \}\)/);

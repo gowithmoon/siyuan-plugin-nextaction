@@ -1,21 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 function source(path: string): string {
     return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
-test("移动和桌面宿主使用共用工作区及各自的展示策略", () => {
-    for (const [file, host] of [
-        ["MobileDockHost", "mobile-dock"],
-        ["DockSidebar", "desktop-dock"],
-        ["NextActionApp", "desktop-tab"],
-    ]) {
-        const component = source(`../src/frontend/components/${file}.svelte`);
-        assert.match(component, /<Workspace/);
-        assert.ok(component.includes(`host="${host}"`));
-    }
+test("移动 Dock 与桌面完整面板使用工作区，桌面 Dock 保留独立三段式实现", () => {
+    const mobile = source("../src/frontend/components/MobileDockHost.svelte");
+    const desktopDock = source("../src/frontend/components/DockSidebar.svelte");
+    const desktopTab = source("../src/frontend/components/NextActionApp.svelte");
+    assert.match(mobile, /<Workspace[\s\S]*host="mobile-dock"/);
+    assert.match(desktopTab, /<Workspace[\s\S]*host="desktop-tab"/);
+    assert.doesNotMatch(desktopDock, /<Workspace/);
+    assert.match(desktopDock, /<NaSegmentControl/);
+    for (const name of ["DockNextAction", "DockInbox", "DockMyDay"])
+        assert.equal(existsSync(new URL(`../src/frontend/components/${name}.svelte`, import.meta.url)), true);
 });
 
 test("移动端隐藏顶部栏和命令入口，但保留 Dock 内部入口", () => {

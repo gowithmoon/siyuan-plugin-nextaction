@@ -65,11 +65,15 @@ test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组�
     assert.match(reminder, /reminderOverdueMinutes/);
 });
 
-test("Dock 的常用页面复用完整工作区中的任务视图", () => {
+test("桌面 Dock 保留三段式专用视图，完整面板继续使用共享视图", () => {
     const workspace = source("../src/frontend/components/Workspace.svelte");
     for (const name of ["NextActionView", "InboxView", "MyDayView"]) assert.ok(workspace.includes(`<${name}`));
-    for (const name of ["DockNextAction", "DockInbox", "DockMyDay"])
-        assert.equal(existsSync(new URL(`../src/frontend/components/${name}.svelte`, import.meta.url)), false);
+    const dock = source("../src/frontend/components/DockSidebar.svelte");
+    for (const name of ["DockNextAction", "DockInbox", "DockMyDay"]) {
+        assert.match(dock, new RegExp(`<${name}`));
+        assert.equal(existsSync(new URL(`../src/frontend/components/${name}.svelte`, import.meta.url)), true);
+    }
+    assert.doesNotMatch(dock, /<Workspace/);
 });
 
 test("公共筛选栏由 props 驱动并通过 typed callback 返回完整状态", () => {
