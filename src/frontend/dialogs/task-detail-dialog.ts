@@ -1,3 +1,4 @@
+import * as siyuan from "siyuan";
 import { confirm, Dialog } from "siyuan";
 import type { TaskCacheEntry } from "../../shared/types";
 import type { I18nStrings } from "../../shared/i18n";
@@ -5,6 +6,7 @@ import type { KernelBridge } from "../kernel-bridge";
 import { notifyError, notifyOperationError } from "../notify";
 import { taskStore } from "../stores/task-store";
 import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
+import { isMobileCreateTaskFrontend } from "./create-task-routing";
 
 export interface TaskDetailDialogOptions {
     blockId: string;
@@ -35,6 +37,43 @@ export async function openTaskDetailDialog(options: TaskDetailDialogOptions): Pr
         return;
     }
     taskStore.applyUpdate(task);
+
+    const frontend =
+        (siyuan as typeof siyuan & { getFrontend?: () => string }).getFrontend?.() ??
+        (globalThis as typeof globalThis & { siyuan?: { getFrontend?: () => string } }).siyuan?.getFrontend?.() ??
+        "desktop";
+    if (isMobileCreateTaskFrontend(frontend)) {
+        const host = document.createElement("div");
+        host.className = "nextaction na-mobile-task-detail-root";
+        const pageRoot = document.activeElement?.closest<HTMLElement>(".na-app");
+        if (!pageRoot) host.classList.add("na-app");
+        (pageRoot || document.body).appendChild(host);
+        let mounted: AsyncSvelteComponentMount<object> | null = null;
+        let closed = false;
+        const close = async () => {
+            if (closed) return;
+            closed = true;
+            await mounted?.dispose();
+            host.remove();
+        };
+        mounted = mountSvelteComponentAsync(() => import("../components/MobileTaskDetailHost.svelte"), {
+            target: host,
+            props: {
+                task,
+                bridge: options.bridge,
+                i18n: options.i18n,
+                onClose: close,
+                onCreateChild: options.onCreateChild,
+            },
+        });
+        try {
+            await mounted.ready;
+        } catch (error: unknown) {
+            await close();
+            notifyOperationError(error, options.i18n);
+        }
+        return;
+    }
 
     let detail: AsyncSvelteComponentMount<{ requestClose(): Promise<boolean> }> | null = null;
     const dialog = new Dialog({

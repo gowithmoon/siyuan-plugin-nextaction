@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isMobileCreateTaskFrontend } from "../src/frontend/dialogs/create-task-routing";
 
 import {
     DEFAULT_TASK_CREATION_SETTINGS,
@@ -66,6 +67,19 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     assert.match(dialog, /bridge\.getTask\(id\)/);
     assert.match(dialogHost, /create-task-dialog\.scss\?inline/);
     assert.match(dialogHost, /style\.textContent = createTaskDialogStyles/);
+});
+
+test("移动端外部创建入口使用共享全屏宿主并保持回调关闭顺序", () => {
+    // Regression: 移动端编辑器入口曾始终创建固定宽度 Dialog，绕过页面栈与草稿关闭保护。
+    assert.equal(isMobileCreateTaskFrontend("mobile"), true);
+    assert.equal(isMobileCreateTaskFrontend("browser-mobile"), true);
+    assert.equal(isMobileCreateTaskFrontend("desktop"), false);
+    const mobileHost = source("../src/frontend/components/MobileCreateTaskHost.svelte");
+    const dialogHost = source("../src/frontend/dialogs/create-task-dialog.ts");
+    assert.match(dialogHost, /MobileCreateTaskHost\.svelte/);
+    assert.match(mobileHost, /provideWorkspace\(\s*"mobile-dock"/);
+    assert.match(mobileHost, /createComponent\?\.requestClose\(\)/);
+    assert.match(mobileHost, /onCreated\?\.\(task\);\s*await onClose\(\)/);
 });
 
 test("任务创建支持原生任务块与文档块", () => {

@@ -1,8 +1,17 @@
-import { Dialog } from "siyuan";
+import * as siyuan from "siyuan";
 import type { KernelBridge } from "../kernel-bridge";
 import type { TaskCacheEntry } from "../../shared/types";
 import createTaskDialogStyles from "./create-task-dialog.scss?inline";
 import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
+import { isMobileCreateTaskFrontend } from "./create-task-routing";
+
+type FrontendGetter = () => string;
+
+function getCurrentFrontend(): string {
+    const sdk = siyuan as typeof siyuan & { getFrontend?: FrontendGetter };
+    const globalSiyuan = (globalThis as typeof globalThis & { siyuan?: { getFrontend?: FrontendGetter } }).siyuan;
+    return sdk.getFrontend?.() ?? globalSiyuan?.getFrontend?.() ?? "desktop";
+}
 
 export interface OpenCreateTaskDialogOptions {
     bridge: KernelBridge;
@@ -13,8 +22,34 @@ export interface OpenCreateTaskDialogOptions {
 }
 
 export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions): Promise<void> {
+    const frontend = getCurrentFrontend();
+    if (isMobileCreateTaskFrontend(frontend)) {
+        const host = document.createElement("div");
+        const pageRoot = document.activeElement?.closest<HTMLElement>(".na-app");
+        host.className = `nextaction na-mobile-create-task-root${pageRoot ? "" : " na-app"}`;
+        (pageRoot || document.body).appendChild(host);
+        let mounted: AsyncSvelteComponentMount<object> | null = null;
+        let closed = false;
+        const close = async () => {
+            if (closed) return;
+            closed = true;
+            await mounted?.dispose();
+            host.remove();
+        };
+        mounted = mountSvelteComponentAsync(() => import("../components/MobileCreateTaskHost.svelte"), {
+            target: host,
+            props: { ...options, onClose: close },
+        });
+        try {
+            await mounted.ready;
+        } catch (error) {
+            await close();
+            throw error;
+        }
+        return;
+    }
     let mounted: AsyncSvelteComponentMount<object> | null = null;
-    const dialog = new Dialog({
+    const dialog = new siyuan.Dialog({
         title:
             options.initialActionKind === "stage"
                 ? options.i18n?.createStage || "Create Stage"
