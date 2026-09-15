@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onDestroy } from "svelte";
     import { useWorkspace } from "../../workspace-context";
     const workspace = useWorkspace();
     import {
@@ -56,10 +57,16 @@
     let originClientX: number = 0;
     let previewOffsetX: number = $state(0);
     let isDragging: boolean = $state(false);
-    let suppressClick = false;
     let longPressTimer: ReturnType<typeof setTimeout> | null = null;
     let longPressActive = false;
     let lastTapAt = 0;
+
+    function clearLongPress() {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressActive = false;
+    }
+    onDestroy(clearLongPress);
 
     let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
     let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
@@ -94,8 +101,11 @@
     let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
+        if (dragMode !== "none") return;
         if (e.pointerType !== "touch" && e.button !== 0) return;
         e.stopPropagation();
+        clearLongPress();
+        if (mode !== "move") lastTapAt = 0;
         if (workspace?.touch) {
             longPressActive = false;
             longPressTimer = setTimeout(() => {
@@ -120,12 +130,17 @@
     }
 
     function handlePointerMove(e: PointerEvent) {
-        if (dragMode === "none") return;
+        if (dragMode === "none" || e.pointerId !== pointerId) return;
         const dy = e.clientY - originClientY;
         const dm = dy / PIXELS_PER_MINUTE;
 
-        if (Math.abs(dy) > CLICK_THRESHOLD_PX || isDragging) {
+        if (
+            Math.abs(dy) > CLICK_THRESHOLD_PX ||
+            (dragMode === "move" && Math.abs(e.clientX - originClientX) > CLICK_THRESHOLD_PX) ||
+            isDragging
+        ) {
             isDragging = true;
+            lastTapAt = 0;
         }
 
         if (!isDragging) return;
@@ -161,7 +176,7 @@
     }
 
     function handlePointerUp(e: PointerEvent) {
-        if (dragMode === "none") return;
+        if (dragMode === "none" || e.pointerId !== pointerId) return;
         const currentMode = dragMode;
         dragMode = "none";
         if (longPressTimer) {
@@ -169,12 +184,20 @@
             longPressTimer = null;
         }
 
+        if (!isDragging && currentMode !== "move") return;
+
         if (!isDragging && workspace?.touch) {
             if (!longPressActive) {
                 const now = Date.now();
-                if (now - lastTapAt < 320) workspace.openTask?.(task);
-                else openQuickMenu(e);
-                lastTapAt = now;
+                if (lastTapAt > 0 && now - lastTapAt < 320) {
+                    lastTapAt = 0;
+                    workspace.openTask?.(task);
+                } else {
+                    lastTapAt = now;
+                    openQuickMenu(e);
+                }
+            } else {
+                lastTapAt = 0;
             }
             longPressActive = false;
             isDragging = false;
@@ -204,7 +227,7 @@
             return;
         }
 
-        suppressClick = true;
+        lastTapAt = 0;
         isDragging = false;
 
         const elUnderPointer = document.elementFromPoint(e.clientX, e.clientY);
@@ -221,6 +244,14 @@
                 .then((newState) => taskStore.applyMyDayUpdate(newState))
                 .catch((err) => notifyError(formatRpcError(err, i18n)));
         }
+    }
+
+    function handlePointerCancel(e: PointerEvent) {
+        if (e.pointerId !== pointerId) return;
+        dragMode = "none";
+        isDragging = false;
+        lastTapAt = 0;
+        clearLongPress();
     }
 
     function handleCardKeydown(event: KeyboardEvent): void {
@@ -274,11 +305,6 @@
             return;
         }
     }}
-    ondblclick={(event) => {
-        if (!workspace?.touch) return;
-        event.preventDefault();
-        workspace.openTask?.(task);
-    }}
     class:na-timeline-card--dragging={isDragging}
     class:na-timeline-card--removing={isRemoving}
     class:na-timeline-card--compact={isCompact}
@@ -290,6 +316,7 @@
     onpointerdown={(e) => handlePointerDown(e, "move")}
     onpointermove={handlePointerMove}
     onpointerup={handlePointerUp}
+    onpointercancel={handlePointerCancel}
     oncontextmenu={handleContextMenu}
     onkeydown={handleCardKeydown}
 >
@@ -338,13 +365,45 @@
 </div>
 
 <style lang="scss">
-    .na-timeline-card--touch {
-        touch-action: none !important;
-    }
-    .na-timeline-card--touch .na-timeline-card__handle {
-        display: none;
-    }
+    .na-timeline-card.na-timeline-card--touch {
+        touch-action: none;
+        overflow: visible;
 
+        &:not(.na-timeline-card--dragging) {
+            z-index: auto;
+        }
+
+        .na-timeline-card__content {
+            max-height: 100%;
+            box-sizing: border-box;
+        }
+
+        // Separate outward targets so adjacent short cards remain distinguishable.
+        .na-timeline-card__handle {
+            z-index: 13;
+            background: var(--na-color-info-bg);
+
+            &::before {
+                content: "";
+                position: absolute;
+                inset-inline: 0;
+                height: 22px;
+            }
+
+            &--top {
+                right: 50%;
+                &::before {
+                    bottom: 0;
+                }
+            }
+            &--bottom {
+                left: 50%;
+                &::before {
+                    top: 0;
+                }
+            }
+        }
+    }
     .na-timeline-card {
         position: absolute;
         border-radius: 8px;

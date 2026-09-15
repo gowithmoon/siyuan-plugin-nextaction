@@ -191,7 +191,7 @@
         />
         <div
             class="na-task-card__body"
-            class:na-task-card__body--metadata-empty={!hasCardMetadata}
+            class:na-task-card__body--metadata-empty={!hasCardMetadata && !workspace?.touch}
             role="button"
             tabindex={managedFocus ? -1 : 0}
             onclick={handleBodyClick}
@@ -244,7 +244,7 @@
                         </span>
                     </NaTooltip>{/if}
                 {#if priorityLabel}
-                    <NaTooltip text={priorityLabel}>
+                    <NaTooltip text={priorityLabel} disabled={workspace?.touch}>
                         <span class="na-task-card__priority" style="--na-task-priority-color: {priorityTextColor}">
                             <span class="na-task-card__priority-dot" aria-hidden="true"></span>
                             <span>{priorityLabel}</span>
@@ -340,15 +340,15 @@
                         >
                     {/if}
                 </div>
-                <span class="na-task-card__stats">
-                    <NaTooltip text={i18n?.importance || "Importance"}>
+                <span class="na-task-card__stats" class:na-task-card__stats--touch={workspace?.touch}>
+                    <NaTooltip text={i18n?.importance || "Importance"} disabled={workspace?.touch}>
                         <span class="na-task-card__stat-item na-task-card__stat-item--importance">
                             <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"
                                 ><path d="M8 1l2.2 4.5 5 .7-3.6 3.5.8 5L8 12.4 3.6 14.7l.8-5L.8 6.2l5-.7z" /></svg
                             >{task.importance ?? 4}
                         </span>
                     </NaTooltip>
-                    <NaTooltip text={i18n?.effort || "Effort"}>
+                    <NaTooltip text={i18n?.effort || "Effort"} disabled={workspace?.touch}>
                         <span class="na-task-card__stat-item na-task-card__stat-item--effort">
                             <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"
                                 ><circle cx="8" cy="8" r="3.5" /><circle
