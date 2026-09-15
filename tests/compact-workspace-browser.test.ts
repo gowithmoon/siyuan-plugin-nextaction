@@ -11,8 +11,6 @@ for (const [width, height, mobile, dark] of [
     [390, 844, true, true],
     [430, 932, true, false],
     [844, 390, true, false],
-    [260, 800, false, false],
-    [300, 800, false, true],
 ] as const)
     test(`紧凑工作区 ${width}×${height} ${mobile ? "手机" : "桌面 Dock"} ${dark ? "深色" : "浅色"}`, async () => {
         // Regression: 移动 Dock 只能通过桌面式完整面板访问项目，缺少触摸导航与整页编辑。

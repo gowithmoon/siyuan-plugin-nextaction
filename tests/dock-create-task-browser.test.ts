@@ -7,6 +7,9 @@ import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 test("窄面板提供创建任务入口并打开现有创建对话框", async () => {
     const result = await runSvelteBrowserTest<{
         buttonLabel: string | null;
+        desktopDock: boolean;
+        mobileNavigationAbsent: boolean;
+        tabCount: number;
         createDialogVisible: boolean;
         detailDialogVisible: boolean;
         createCalls: number;
@@ -85,8 +88,13 @@ const bridge = {
 import Harness from "./Harness.svelte";
 mount(Harness, { target: document.querySelector("#app") });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-void (async () => {
+        void (async () => {
     await tick();
+    // Regression: 移动端 Workspace 导航曾错误替换 PC Dock 的三段式面板。
+    const dockRoot = document.querySelector(".na-dock");
+    const desktopDock = Boolean(dockRoot);
+    const mobileNavigationAbsent = !document.querySelector(".na-compact-nav, .na-view-directory");
+    const tabCount = document.querySelectorAll(".na-segment-control__option").length;
     const button = document.querySelector('button[aria-label="Create task"]');
     button?.click();
     await wait(120);
@@ -114,6 +122,9 @@ void (async () => {
     const dock = document.querySelector(".na-dock");
     window.__NA_BROWSER_RESULT__({
         buttonLabel: button?.getAttribute("aria-label") || null,
+        desktopDock,
+        mobileNavigationAbsent,
+        tabCount,
         createDialogVisible: Boolean(document.querySelector(".na-create-task")),
         detailDialogVisible: Boolean(document.querySelector(".na-task-dialog-content")),
         createCalls: window.__NA_CREATE_CALLS__ || 0,
@@ -130,6 +141,9 @@ void (async () => {
 
     assert.deepEqual(result, {
         buttonLabel: "Create task",
+        desktopDock: true,
+        mobileNavigationAbsent: true,
+        tabCount: 3,
         createDialogVisible: false,
         detailDialogVisible: true,
         createCalls: 1,
