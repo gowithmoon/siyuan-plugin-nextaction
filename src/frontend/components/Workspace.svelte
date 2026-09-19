@@ -681,18 +681,6 @@
                     <h2>{i18n.allViews}</h2>
                     <NaIconButton symbol="iconClose" label={i18n.cancel} onclick={closeMobileViewPicker} />
                 </div>
-                {#if activeView !== VIEW_BY_PROJECT}
-                    <div class="na-project-compact-toolbar na-mobile-view-picker__resume">
-                        <NaButton
-                            size="sm"
-                            icon="iconProject"
-                            onclick={() => {
-                                closeMobileViewPicker();
-                                switchView(VIEW_BY_PROJECT);
-                            }}>{i18n.projectList}</NaButton
-                        >
-                    </div>
-                {/if}
                 <CompactNavigation
                     {i18n}
                     {activeView}
