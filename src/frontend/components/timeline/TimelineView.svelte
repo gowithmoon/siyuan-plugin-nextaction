@@ -1,5 +1,6 @@
 <script lang="ts">
     import { useWorkspace } from "../../workspace-context";
+    const workspace = useWorkspace();
     import NaAccordion from "../../ui/NaAccordion.svelte";
     const compact = useWorkspace()?.compact ?? false;
     import { onMount } from "svelte";
@@ -82,7 +83,19 @@
     class:na-timeline-view--compact={compact}
     bind:this={containerEl}
 >
-    {#if compact || isNarrow}
+    {#if workspace?.touch}
+        <div class="na-timeline-view__bottom">
+            <TimelineColumn
+                {scheduledEntries}
+                {taskMap}
+                {resetHour}
+                {defaultDuration}
+                {bridge}
+                {i18n}
+                {onContextMenu}
+            />
+        </div>
+    {:else if compact || isNarrow}
         <div class="na-timeline-view__top">
             {#snippet unscheduledContent()}
                 <UnscheduledPanel
@@ -165,6 +178,11 @@
     .na-timeline-view--narrow .na-timeline-view__bottom {
         order: 1;
         min-height: 0;
+    }
+
+    .na-timeline-view--narrow > .na-timeline-view__bottom:only-child {
+        flex: 1;
+        height: 100%;
     }
 
     .na-timeline-view--compact .na-timeline-view__top {

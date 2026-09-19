@@ -48,17 +48,28 @@
         stack.pages.push(element);
         stacks.set(root, stack);
         reconcile(root, stack);
-        element.focus();
+        element.focus({ preventScroll: true });
+        let focusFrame = 0;
         const focusVisible = (event: FocusEvent) => {
             const target = event.target;
             if (!(target instanceof HTMLElement) || target === element) return;
-            requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
+            cancelAnimationFrame(focusFrame);
+            focusFrame = requestAnimationFrame(() => {
+                const body = element.querySelector<HTMLElement>(".na-page-host__body");
+                if (!body?.contains(target) || !target.isConnected) return;
+                // Scroll only this surface: scrollIntoView also moves the workspace behind it.
+                const bounds = body.getBoundingClientRect();
+                const field = target.getBoundingClientRect();
+                if (field.top < bounds.top) body.scrollTop += field.top - bounds.top;
+                else if (field.bottom > bounds.bottom) body.scrollTop += field.bottom - bounds.bottom;
+            });
         };
         element.addEventListener("focusin", focusVisible);
         return () => {
             viewport?.removeEventListener("resize", updateViewport);
             viewport?.removeEventListener("scroll", updateViewport);
             element.removeEventListener("focusin", focusVisible);
+            cancelAnimationFrame(focusFrame);
             stack.pages = stack.pages.filter((page) => page !== element);
             stack.background.delete(element);
             element.remove();
@@ -89,10 +100,10 @@
         }
         if (event.shiftKey && (document.activeElement === first || document.activeElement === element)) {
             event.preventDefault();
-            last?.focus();
+            last?.focus({ preventScroll: true });
         } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === element)) {
             event.preventDefault();
-            first.focus();
+            first.focus({ preventScroll: true });
         }
     }
 </script>
@@ -177,14 +188,14 @@
     }
     @media (prefers-reduced-motion: no-preference) {
         .na-page-host--sheet {
-            animation: na-sheet-in 180ms ease-out;
+            animation: na-sheet-in 120ms ease-out;
         }
         @keyframes na-sheet-in {
             from {
-                transform: translateY(100%);
+                opacity: 0;
             }
             to {
-                transform: translateY(0);
+                opacity: 1;
             }
         }
     }

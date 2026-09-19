@@ -1,4 +1,7 @@
 {
+    "timelineMove": "移动",
+    "timelineEnd": "结束时间",
+
     "pluginName": "今天干点啥",
     "navFocus": "聚焦",
     "navOrganize": "整理",
