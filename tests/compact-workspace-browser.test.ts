@@ -79,7 +79,14 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
  const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : "document"});
+ // Regression: 移动端“全部任务”和“全部视图”曾共用图标，且视图面板顶部出现来源不明的“项目”快捷入口。
+ const navIcon=(label)=>nav().querySelector('button[aria-label="'+label+'"] use')?.getAttribute('href');
+ out.allTasksNavigationIcon=navIcon('全部任务');
+ out.allViewsNavigationIcon=nav().querySelector('button:last-child use')?.getAttribute('href');
+ click('全部任务',nav());await pause();
+ out.allTasksHeader=document.querySelector('.na-workspace__header h1')?.textContent;
  catalog(); await pause();
+ out.projectShortcutAbsent=![...document.querySelectorAll('.na-mobile-view-picker__sheet button')].some(button=>button.textContent.trim()==='项目');
  out.catalogCount=document.querySelectorAll('.na-view-directory button').length;
  click('项目视图',document.querySelector('.na-view-directory'));await pause();
  out.startsWithProjectList=!!document.querySelector('.na-project-index')&&!document.querySelector('.na-project-canvas');
@@ -163,6 +170,10 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
         });
         assert.deepEqual(result, {
             hasDesktopRail: false,
+            allTasksNavigationIcon: "#iconList",
+            allViewsNavigationIcon: "#iconLayoutGrid",
+            allTasksHeader: "全部任务",
+            projectShortcutAbsent: true,
             catalogCount: 10,
             startsWithProjectList: true,
             projectDrilldown: true,

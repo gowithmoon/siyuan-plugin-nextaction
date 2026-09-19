@@ -1,5 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { useWorkspace } from "../../workspace-context";
+    import NaOptionPicker from "../../ui/NaOptionPicker.svelte";
     import { PIXELS_PER_MINUTE, TIMELINE_SLOT_MINUTES, DAY_MINUTES, MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
@@ -35,6 +37,7 @@
         i18n,
         onContextMenu,
     }: Props = $props();
+    const workspace = useWorkspace();
 
     let containerEl: HTMLElement | null = $state(null);
     let containerWidth: number = $state(300);
@@ -42,10 +45,104 @@
     let isDragOver: boolean = $state(false);
     let dragPreviewStart: number | null = $state(null);
     let dragPreviewEnd: number | null = $state(null);
+    let addMinute: number | null = $state(null);
+    let addBusy = $state(false);
+    let addError = $state("");
+    let addTimer: ReturnType<typeof setTimeout> | null = null;
+    let addPointer: { id: number; x: number; y: number } | null = null;
 
     let totalHeight = $derived(DAY_MINUTES * PIXELS_PER_MINUTE);
     let laneLayouts = $derived(computeLaneLayouts(scheduledEntries));
     let slots = $derived(generateTimelineSlots(resetHour, TIMELINE_SLOT_MINUTES));
+
+    let addOptions = $derived.by(() => {
+        const entries = new Map(($taskStore.myDayState?.tasks ?? []).map((entry) => [entry.blockId, entry]));
+        return $taskStore.allTasks
+            .filter((task) => {
+                const entry = entries.get(task.blockId);
+                return (
+                    task.status !== "done" &&
+                    task.status !== "someday" &&
+                    !entry?.completedAt &&
+                    (!entry || entry.scheduleStart === null || entry.scheduleEnd === null)
+                );
+            })
+            .sort((a, b) => Number(entries.has(b.blockId)) - Number(entries.has(a.blockId)))
+            .map((task) => ({ id: task.blockId, label: task.title || i18n.untitled }));
+    });
+
+    async function addTaskAtMinute(value: string | string[]) {
+        const blockId = typeof value === "string" ? value : "";
+        if (!blockId || addMinute === null || addBusy) return;
+        const start = addMinute;
+        addBusy = true;
+        addError = "";
+        try {
+            if (!$taskStore.myDayState?.tasks.some((entry) => entry.blockId === blockId)) {
+                taskStore.applyMyDayUpdate(await bridge.addTaskToMyDay(blockId));
+            }
+            const state = await bridge.setMyDaySchedule(blockId, start, Math.min(DAY_MINUTES, start + defaultDuration));
+            taskStore.applyMyDayUpdate(state);
+            addMinute = null;
+        } catch (err: any) {
+            addError = formatRpcError(err, i18n);
+        } finally {
+            addBusy = false;
+        }
+    }
+
+    function clearAddGesture() {
+        if (addTimer) clearTimeout(addTimer);
+        addTimer = null;
+        addPointer = null;
+    }
+
+    function openAddAt(clientY: number) {
+        if (!containerEl || !workspace?.touch) return;
+        const rect = containerEl.getBoundingClientRect();
+        const offset = clientY - rect.top + containerEl.scrollTop;
+        addMinute = Math.max(0, Math.min(DAY_MINUTES - defaultDuration, pixelToSnappedMinute(offset)));
+        addError = "";
+    }
+
+    function handleBlankPointerDown(event: PointerEvent) {
+        const target = event.target as HTMLElement;
+        const card = target.closest(".na-timeline-card")?.getBoundingClientRect();
+        // Mobile browsers can retarget a tap in empty space to a nearby clickable card.
+        const hitsCard =
+            card &&
+            event.clientX >= card.left &&
+            event.clientX <= card.right &&
+            event.clientY >= card.top &&
+            event.clientY <= card.bottom;
+        if (
+            !workspace?.touch ||
+            !containerEl ||
+            addBusy ||
+            (!event.isPrimary && event.pointerType === "touch") ||
+            (event.pointerType !== "touch" && event.button !== 0) ||
+            hitsCard ||
+            target.closest(".na-timeline-slot, .na-timeline-card__tools, button") ||
+            event.clientX < containerEl.getBoundingClientRect().left + LABEL_AREA_WIDTH
+        )
+            return;
+        clearAddGesture();
+        addPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        addTimer = setTimeout(() => {
+            if (addPointer) openAddAt(addPointer.y);
+            clearAddGesture();
+        }, 450);
+    }
+
+    function handleBlankPointerMove(event: PointerEvent) {
+        if (!addPointer || event.pointerId !== addPointer.id) return;
+        if (Math.hypot(event.clientX - addPointer.x, event.clientY - addPointer.y) > 10) clearAddGesture();
+    }
+
+    function handleBlankPointerUp(event: PointerEvent) {
+        if (!addPointer || event.pointerId !== addPointer.id) return;
+        clearAddGesture();
+    }
 
     function handleDragOver(e: DragEvent) {
         e.preventDefault();
@@ -105,8 +202,7 @@
     }
 
     onMount(() => {
-        setTimeout(scrollToCurrentTime, 100);
-        setTimeout(scrollToCurrentTime, 500);
+        const initialScroll = setTimeout(scrollToCurrentTime, 100);
         if (containerEl) {
             const resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
@@ -114,7 +210,11 @@
                 }
             });
             resizeObserver.observe(containerEl);
-            return () => resizeObserver.disconnect();
+            return () => {
+                resizeObserver.disconnect();
+                clearTimeout(initialScroll);
+                clearAddGesture();
+            };
         }
     });
 </script>
@@ -127,6 +227,14 @@
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
+    onpointerdown={handleBlankPointerDown}
+    onpointermove={handleBlankPointerMove}
+    onpointerup={handleBlankPointerUp}
+    onpointercancel={clearAddGesture}
+    onscroll={clearAddGesture}
+    oncontextmenu={(event) => {
+        if (workspace?.touch) event.preventDefault();
+    }}
 >
     <div class="na-timeline-column__body" style="height: {totalHeight}px; position: relative;">
         {#each slots as slot (slot.minute)}
@@ -177,6 +285,22 @@
         <TimelineNeedle {resetHour} containerHeight={totalHeight} />
     </div>
 </div>
+
+{#if addMinute !== null}
+    <NaOptionPicker
+        title={`${i18n.scheduleTask} ${minuteToTimeLabel(addMinute, resetHour)} - ${minuteToTimeLabel(addMinute + defaultDuration, resetHour)}`}
+        options={addOptions}
+        searchLabel={i18n.dockSearchAddTask}
+        emptyText={i18n.noMatches}
+        closeLabel={i18n.cancel}
+        busy={addBusy}
+        error={addError}
+        onSelect={addTaskAtMinute}
+        onClose={() => {
+            if (!addBusy) addMinute = null;
+        }}
+    />
+{/if}
 
 <style lang="scss">
     .na-timeline-column {

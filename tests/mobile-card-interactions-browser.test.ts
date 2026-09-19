@@ -43,6 +43,12 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms));
 await pause(600);await tick();
 const touch=${host === "mobile-dock"}; const out={};
 out.properties=[...document.querySelectorAll('#properties .na-task-card')].map(card=>['.na-task-card__priority','.na-task-card__stat-item--importance','.na-task-card__stat-item--effort'].map(sel=>{const el=card.querySelector(sel); const r=el.getBoundingClientRect();return {text:el.textContent.trim(),tooltip:!!el.closest('.na-tooltip'),visible:r.width>0&&r.height>0,color:getComputedStyle(el).color};}));
+const displayCard=document.querySelector('.na-timeline-card');
+const content=displayCard.querySelector('.na-timeline-card__content');
+const title=displayCard.querySelector('.na-timeline-card__name');
+const time=displayCard.querySelector('.na-timeline-card__time');
+out.sharedDisplay={content:!!content,header:!!displayCard.querySelector('.na-timeline-card__header'),footer:!!displayCard.querySelector('.na-timeline-card__footer'),radius:getComputedStyle(displayCard).borderRadius,titleFont:getComputedStyle(title).fontSize,timeFont:time&&getComputedStyle(time).fontSize,time:time?.textContent.trim()};
+if(touch){window.__NA_BROWSER_RESULT__(out);return;}
 const column=document.querySelector('.na-timeline-column');
 const card=()=>column.querySelector('.na-timeline-card');
 async function reset(start=60,end=120,adj=false){window.reset(start,end,adj);await tick();column.scrollTop=Math.max(0,start*1.2-60);await tick();}
@@ -78,6 +84,17 @@ window.__NA_BROWSER_RESULT__(out);
                 if (host === "mobile-dock") assert.equal(item.visible, true, JSON.stringify(result));
                 assert.equal(item.tooltip, host !== "mobile-dock");
             }
+        // Regression: 移动我的一天卡片与 PC 共用相同内容层级和展示样式。
+        assert.deepEqual(result.sharedDisplay, {
+            content: true,
+            header: true,
+            footer: true,
+            radius: "8px",
+            titleFont: "12px",
+            timeFont: "10px",
+            time: "06:00 - 07:00",
+        });
+        if (host === "mobile-dock") return; // 移动时间轴行为由 mobile-timeline-browser.test.ts 覆盖。
         assert.equal(result.style.overflow, host === "mobile-dock" ? "visible" : "hidden");
         assert.equal(result.style.handleHeight, "5px");
         assert.equal(result.doubleOpens, host === "mobile-dock" ? 1 : 0);

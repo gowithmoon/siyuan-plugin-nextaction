@@ -16,6 +16,8 @@
     import { notifyError, formatRpcError } from "../../notify";
     import { taskStore } from "../../stores/task-store";
     import { isMyDayEntryDone } from "../../../shared/my-day";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
+    import NaDragHandle from "../../ui/NaDragHandle.svelte";
 
     interface Props {
         entry: MyDayTaskEntry;
@@ -47,7 +49,7 @@
 
     type DragMode = "none" | "move" | "resize-start" | "resize-end";
 
-    let dragMode: DragMode = "none";
+    let dragMode: DragMode = $state("none");
     let pointerId: number = -1;
     let originClientY: number = 0;
     let originStart: number = 0;
@@ -57,24 +59,120 @@
     let originClientX: number = 0;
     let previewOffsetX: number = $state(0);
     let isDragging: boolean = $state(false);
-    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-    let longPressActive = false;
-    let lastTapAt = 0;
+    let cardElement: HTMLDivElement;
+    let toolsOpen = $state(false);
+    let toolsAbove = $state(false);
+    let toolsLeft = $state(0);
+    let saving = $state(false);
+    let timeline: HTMLElement | null = null;
+    let captureElement: HTMLElement | null = null;
+    let previousOverflow = "";
+    let originScroll = 0;
+    let currentY = 0;
+    let frame = 0;
+    let suppressClickUntil = 0;
+    let pressTimer: ReturnType<typeof setTimeout> | null = null;
+    let press: { id: number; x: number; y: number } | null = null;
+    let pressTimeline: HTMLElement | null = null;
+    let contextOpenedForPress = false;
 
-    function clearLongPress() {
-        if (longPressTimer) clearTimeout(longPressTimer);
-        longPressTimer = null;
-        longPressActive = false;
+    function clearPress() {
+        if (pressTimer !== null) clearTimeout(pressTimer);
+        pressTimer = null;
+        press = null;
+        pressTimeline?.removeEventListener("scroll", clearPress);
+        pressTimeline = null;
     }
-    onDestroy(clearLongPress);
+
+    function beginPress(event: PointerEvent) {
+        if (
+            event.pointerType !== "touch" ||
+            !event.isPrimary ||
+            saving ||
+            (event.target as HTMLElement).closest("button, .na-timeline-card__tools")
+        )
+            return;
+        const rect = cardElement.getBoundingClientRect();
+        if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+        )
+            return;
+        clearPress();
+        contextOpenedForPress = false;
+        press = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        pressTimeline = cardElement.closest<HTMLElement>(".na-timeline-column");
+        pressTimeline?.addEventListener("scroll", clearPress);
+        pressTimer = setTimeout(() => {
+            if (!press) return;
+            const { x, y } = press;
+            clearPress();
+            openTouchContextMenu(new MouseEvent("contextmenu", { clientX: x, clientY: y }));
+        }, 450);
+    }
+
+    function openTouchContextMenu(event: MouseEvent) {
+        clearPress();
+        if (contextOpenedForPress) return;
+        contextOpenedForPress = true;
+        suppressClickUntil = Date.now() + 700;
+        toolsOpen = false;
+        onContextMenu(task, event);
+    }
+
+    function releaseGesture() {
+        dragMode = "none";
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (timeline) {
+            timeline.removeEventListener("scroll", updatePreview);
+            if (workspace?.touch) timeline.style.overflowY = previousOverflow;
+        }
+        timeline = null;
+        const element = captureElement;
+        captureElement = null;
+        if (element?.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+        pointerId = -1;
+    }
+
+    function cancelGesture() {
+        clearPress();
+        releaseGesture();
+        isDragging = false;
+    }
+    onDestroy(cancelGesture);
+
+    function toggleTools(event: MouseEvent) {
+        event.stopPropagation();
+        const rect = cardElement.getBoundingClientRect();
+        const bounds = cardElement.closest(".na-timeline-column")!.getBoundingClientRect();
+        toolsAbove = rect.bottom + 110 > bounds.bottom;
+        toolsLeft = Math.max(bounds.left + 4 - rect.left, Math.min(0, bounds.right - 292 - rect.left));
+        toolsOpen = !toolsOpen;
+    }
+    function closeToolsOutside(event: PointerEvent) {
+        if (dragMode === "none" && !cardElement?.contains(event.target as Node)) toolsOpen = false;
+    }
+    function openSchedule(event: MouseEvent) {
+        event.stopPropagation();
+        if (Date.now() < suppressClickUntil || saving) return;
+        toolsOpen = false;
+        workspace?.openSchedule?.(task);
+    }
 
     let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
     let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
     let cardHeight = $derived(minuteToPixel(duration));
     let cardWidth = $derived(laneCount > 0 ? containerWidth / laneCount - 4 : containerWidth);
     let cardLeft = $derived(leftOffset + laneIndex * (containerWidth / laneCount));
-    let timeLabel = $derived(minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour));
-    let endTimeLabel = $derived(minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour));
+    let timeLabel = $derived(
+        minuteToTimeLabel(isDragging || saving ? previewStart : (entry.scheduleStart ?? 0), resetHour),
+    );
+    let endTimeLabel = $derived(
+        minuteToTimeLabel(isDragging || saving ? previewEnd : (entry.scheduleEnd ?? 0), resetHour),
+    );
     let displayPriority = $derived(normalizePriority(task.priority));
     let priorityColor = $derived(PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)");
     let priorityClass = $derived(`na-timeline-card--priority-${displayPriority}`);
@@ -95,26 +193,20 @@
         return due.slice(5);
     }
 
-    let displayTop = $derived(isDragging ? minuteToPixel(previewStart) : cardTop);
-    let displayHeight = $derived(isDragging ? minuteToPixel(previewEnd - previewStart) : cardHeight);
+    let displayTop = $derived(isDragging || saving ? minuteToPixel(previewStart) : cardTop);
+    let displayHeight = $derived(isDragging || saving ? minuteToPixel(previewEnd - previewStart) : cardHeight);
     let displayLeft = $derived(isDragging ? Math.max(0, cardLeft + 2 + previewOffsetX) : cardLeft + 2);
     let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
-        if (dragMode !== "none") return;
-        if (e.pointerType !== "touch" && e.button !== 0) return;
+        clearPress();
+        if (dragMode !== "none" || saving || (e.pointerType !== "touch" && e.button !== 0)) return;
+        if (e.pointerType === "touch" && !e.isPrimary) return;
         e.stopPropagation();
-        clearLongPress();
-        if (mode !== "move") lastTapAt = 0;
-        if (workspace?.touch) {
-            longPressActive = false;
-            longPressTimer = setTimeout(() => {
-                longPressActive = true;
-            }, 420);
-        }
+        e.preventDefault();
         dragMode = mode;
         pointerId = e.pointerId;
-        originClientY = e.clientY;
+        originClientY = currentY = e.clientY;
         originClientX = e.clientX;
         originStart = entry.scheduleStart ?? 0;
         originEnd = entry.scheduleEnd ?? 0;
@@ -122,139 +214,121 @@
         previewEnd = originEnd;
         previewOffsetX = 0;
         isDragging = false;
+        timeline = cardElement.closest<HTMLElement>(".na-timeline-column");
+        originScroll = timeline?.scrollTop ?? 0;
+        if (timeline) {
+            previousOverflow = timeline.style.overflowY;
+            if (workspace?.touch) timeline.style.overflowY = "hidden";
+            timeline.addEventListener("scroll", updatePreview);
+        }
+        captureElement = e.currentTarget as HTMLElement;
         try {
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            captureElement.setPointerCapture(e.pointerId);
         } catch {
-            // Synthetic events may not have an active pointer to capture.
+            // Synthetic browser test events do not create an active pointer.
+            if (e.isTrusted) cancelGesture();
         }
     }
 
-    function handlePointerMove(e: PointerEvent) {
-        if (dragMode === "none" || e.pointerId !== pointerId) return;
-        const dy = e.clientY - originClientY;
-        const dm = dy / PIXELS_PER_MINUTE;
-
-        if (
-            Math.abs(dy) > CLICK_THRESHOLD_PX ||
-            (dragMode === "move" && Math.abs(e.clientX - originClientX) > CLICK_THRESHOLD_PX) ||
-            isDragging
-        ) {
-            isDragging = true;
-            lastTapAt = 0;
-        }
-
-        if (!isDragging) return;
-        e.preventDefault();
-
-        if (workspace?.touch) {
-            const timeline = document.querySelector<HTMLElement>(".na-timeline-column");
-            if (timeline) {
-                const rect = timeline.getBoundingClientRect();
-                const edge = 64;
-                if (e.clientY < rect.top + edge) timeline.scrollTop -= 14;
-                else if (e.clientY > rect.bottom - edge) timeline.scrollTop += 14;
-            }
-        }
-
+    function updatePreview() {
+        if (!isDragging || dragMode === "none") return;
+        const dm =
+            (currentY - originClientY + (timeline?.scrollTop ?? originScroll) - originScroll) / PIXELS_PER_MINUTE;
         if (dragMode === "move") {
-            const newStart = snapMinute(originStart + dm);
-            const clampedStart = Math.max(0, Math.min(DAY_MINUTES - duration, newStart));
-            previewStart = clampedStart;
-            previewEnd = clampedStart + duration;
-            previewOffsetX = e.clientX - originClientX;
+            previewStart = Math.max(0, Math.min(DAY_MINUTES - (originEnd - originStart), snapMinute(originStart + dm)));
+            previewEnd = previewStart + originEnd - originStart;
         } else if (dragMode === "resize-start") {
-            const newStart = snapMinute(originStart + dm);
-            const maxStart = originEnd - MIN_SCHEDULE_DURATION;
-            previewStart = Math.max(0, Math.min(maxStart, newStart));
+            previewStart = Math.max(
+                0,
+                originEnd - 720,
+                Math.min(originEnd - MIN_SCHEDULE_DURATION, snapMinute(originStart + dm)),
+            );
             previewEnd = originEnd;
-        } else if (dragMode === "resize-end") {
-            const newEnd = snapMinute(originEnd + dm);
-            const minEnd = originStart + MIN_SCHEDULE_DURATION;
-            previewEnd = Math.min(DAY_MINUTES, Math.max(minEnd, newEnd));
+        } else {
+            previewEnd = Math.min(
+                DAY_MINUTES,
+                originStart + 720,
+                Math.max(originStart + MIN_SCHEDULE_DURATION, snapMinute(originEnd + dm)),
+            );
             previewStart = originStart;
         }
     }
 
-    function handlePointerUp(e: PointerEvent) {
+    function autoScroll() {
+        frame = 0;
+        if (!timeline || !isDragging || dragMode === "none" || !workspace?.touch) return;
+        const rect = timeline.getBoundingClientRect();
+        const edge = 48;
+        const speed =
+            currentY < rect.top + edge
+                ? -Math.min(10, (rect.top + edge - currentY) / 5)
+                : currentY > rect.bottom - edge
+                  ? Math.min(10, (currentY - rect.bottom + edge) / 5)
+                  : 0;
+        if (speed) {
+            timeline.scrollTop += speed;
+            updatePreview();
+        }
+        frame = requestAnimationFrame(autoScroll);
+    }
+
+    function handlePointerMove(e: PointerEvent) {
+        if (press?.id === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > CLICK_THRESHOLD_PX)
+            clearPress();
+        if (dragMode === "none" || e.pointerId !== pointerId) return;
+        currentY = e.clientY;
+        if (
+            Math.abs(currentY - originClientY) > CLICK_THRESHOLD_PX ||
+            (dragMode === "move" && Math.abs(e.clientX - originClientX) > CLICK_THRESHOLD_PX)
+        )
+            isDragging = true;
+        if (!isDragging) return;
+        e.preventDefault();
+        suppressClickUntil = Date.now() + 400;
+        previewOffsetX = workspace?.touch || dragMode !== "move" ? 0 : e.clientX - originClientX;
+        updatePreview();
+        if (workspace?.touch && !frame) frame = requestAnimationFrame(autoScroll);
+    }
+
+    async function handlePointerUp(e: PointerEvent) {
+        if (press?.id === e.pointerId) clearPress();
+        if (workspace?.touch && contextOpenedForPress) suppressClickUntil = Date.now() + 700;
         if (dragMode === "none" || e.pointerId !== pointerId) return;
         const currentMode = dragMode;
-        dragMode = "none";
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-
-        if (!isDragging && currentMode !== "move") return;
-
-        if (!isDragging && workspace?.touch) {
-            if (!longPressActive) {
-                const now = Date.now();
-                if (lastTapAt > 0 && now - lastTapAt < 320) {
-                    lastTapAt = 0;
-                    workspace.openTask?.(task);
-                } else {
-                    lastTapAt = now;
-                    openQuickMenu(e);
-                }
-            } else {
-                lastTapAt = 0;
-            }
-            longPressActive = false;
-            isDragging = false;
+        const moved = isDragging;
+        updatePreview();
+        releaseGesture();
+        if (!moved) {
+            if (!workspace?.touch && currentMode === "move") openQuickMenu(e);
             return;
         }
-        if (!isDragging) {
-            showTaskQuickMenu(
-                task,
-                e.clientX,
-                e.clientY,
-                bridge,
-                i18n,
-                {
-                    onScheduleRemoved: (newState: MyDayState) => {
-                        taskStore.applyMyDayUpdate(newState);
-                    },
-                    onTaskUpdated: (updated: TaskCacheEntry) => {
-                        taskStore.applyUpdate(updated);
-                    },
-                    onRemovedFromMyDay: (newState: MyDayState) => {
-                        taskStore.applyMyDayUpdate(newState);
-                    },
-                },
-                isDone,
-            );
-            isDragging = false;
-            return;
-        }
-
-        lastTapAt = 0;
         isDragging = false;
-
-        const elUnderPointer = document.elementFromPoint(e.clientX, e.clientY);
-        const isOverUnscheduled = !!elUnderPointer?.closest(".na-unscheduled");
-
-        if (isOverUnscheduled && currentMode === "move") {
-            bridge
-                .removeMyDaySchedule(entry.blockId)
-                .then((newState) => taskStore.applyMyDayUpdate(newState))
-                .catch((err) => notifyError(formatRpcError(err, i18n)));
-        } else if (previewStart !== originStart || previewEnd !== originEnd) {
-            bridge
-                .setMyDaySchedule(entry.blockId, previewStart, previewEnd)
-                .then((newState) => taskStore.applyMyDayUpdate(newState))
-                .catch((err) => notifyError(formatRpcError(err, i18n)));
+        suppressClickUntil = Date.now() + 400;
+        const overUnscheduled =
+            !workspace?.touch &&
+            currentMode === "move" &&
+            !!document.elementFromPoint(e.clientX, e.clientY)?.closest(".na-unscheduled");
+        if (!overUnscheduled && previewStart === originStart && previewEnd === originEnd) return;
+        saving = true;
+        try {
+            const state = overUnscheduled
+                ? await bridge.removeMyDaySchedule(entry.blockId)
+                : await bridge.setMyDaySchedule(entry.blockId, previewStart, previewEnd);
+            taskStore.applyMyDayUpdate(state);
+        } catch (error) {
+            notifyError(formatRpcError(error, i18n));
+        } finally {
+            saving = false;
         }
     }
 
     function handlePointerCancel(e: PointerEvent) {
-        if (e.pointerId !== pointerId) return;
-        dragMode = "none";
-        isDragging = false;
-        lastTapAt = 0;
-        clearLongPress();
+        if (press?.id === e.pointerId) clearPress();
+        if (e.pointerId === pointerId) cancelGesture();
     }
 
     function handleCardKeydown(event: KeyboardEvent): void {
+        if (event.target !== event.currentTarget) return;
         if (workspace?.touch && (event.key === "Enter" || event.key === " ")) {
             event.preventDefault();
             workspace.openTask?.(task);
@@ -266,11 +340,14 @@
     }
 
     function handleContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
         if (workspace?.touch) {
-            event.preventDefault();
+            if ((event.target as HTMLElement).closest("button, .na-timeline-card__tools") || dragMode !== "none")
+                return;
+            openTouchContextMenu(event);
             return;
         }
-        event.preventDefault();
         onContextMenu(task, event);
     }
 
@@ -296,13 +373,33 @@
     }
 </script>
 
+<svelte:window onpointerdown={closeToolsOutside} onblur={cancelGesture} />
+
 <div
+    bind:this={cardElement}
     class="na-timeline-card {priorityClass}"
+    class:na-timeline-card--selected={toolsOpen}
+    aria-busy={saving}
+    aria-label={`${task.title}, ${timeLabel} – ${endTimeLabel}`}
     class:na-timeline-card--touch={workspace?.touch}
     onclick={(event) => {
         if (workspace?.touch) {
             event.preventDefault();
-            return;
+            const rect = cardElement.getBoundingClientRect();
+            if (
+                event.detail > 0 &&
+                (event.clientX < rect.left ||
+                    event.clientX > rect.right ||
+                    event.clientY < rect.top ||
+                    event.clientY > rect.bottom)
+            )
+                return;
+            if (
+                Date.now() < suppressClickUntil ||
+                (event.target as HTMLElement).closest("button, .na-timeline-card__tools")
+            )
+                return;
+            workspace.openTask?.(task);
         }
     }}
     class:na-timeline-card--dragging={isDragging}
@@ -313,18 +410,75 @@
     style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityColor};"
     role="button"
     tabindex="0"
-    onpointerdown={(e) => handlePointerDown(e, "move")}
+    onpointerdown={(e) => {
+        if (workspace?.touch) beginPress(e);
+        else handlePointerDown(e, "move");
+    }}
     onpointermove={handlePointerMove}
     onpointerup={handlePointerUp}
     onpointercancel={handlePointerCancel}
+    onlostpointercapture={handlePointerCancel}
     oncontextmenu={handleContextMenu}
     onkeydown={handleCardKeydown}
 >
-    <div
-        class="na-timeline-card__handle na-timeline-card__handle--top"
-        role="separator"
-        onpointerdown={(event) => handleResizePointerDown(event, "resize-start")}
-    ></div>
+    {#if workspace?.touch}
+        <div class="na-timeline-card__edit">
+            <NaIconButton
+                symbol="iconCalendar"
+                label={i18n.scheduleTask}
+                compact
+                active={toolsOpen}
+                disabled={saving}
+                onclick={toggleTools}
+            />
+        </div>
+        {#if toolsOpen}
+            <div
+                class="na-timeline-card__tools"
+                class:na-timeline-card__tools--above={toolsAbove}
+                style={`left: ${toolsLeft}px`}
+            >
+                <div class="na-timeline-card__tools-time" aria-live="polite">{timeLabel} – {endTimeLabel}</div>
+                <div class="na-timeline-card__tools-row">
+                    <NaDragHandle
+                        label={i18n.scheduleStart}
+                        disabled={saving}
+                        active={isDragging && dragMode === "resize-start"}
+                        onpointerdown={(e) => handlePointerDown(e, "resize-start")}
+                        onclick={openSchedule}
+                    />
+                    <NaDragHandle
+                        label={i18n.timelineMove}
+                        disabled={saving}
+                        active={isDragging && dragMode === "move"}
+                        onpointerdown={(e) => handlePointerDown(e, "move")}
+                        onclick={openSchedule}
+                    />
+                    <NaDragHandle
+                        label={i18n.timelineEnd}
+                        disabled={saving}
+                        active={isDragging && dragMode === "resize-end"}
+                        onpointerdown={(e) => handlePointerDown(e, "resize-end")}
+                        onclick={openSchedule}
+                    />
+                    <NaIconButton
+                        symbol="iconClose"
+                        label={i18n.close}
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            toolsOpen = false;
+                        }}
+                    />
+                </div>
+            </div>
+        {/if}
+    {:else}
+        <div
+            class="na-timeline-card__handle na-timeline-card__handle--top"
+            role="separator"
+            onpointerdown={(event) => handleResizePointerDown(event, "resize-start")}
+        ></div>
+    {/if}
 
     <div class="na-timeline-card__content">
         {#if !isMinimal}
@@ -357,52 +511,60 @@
         {/if}
     </div>
 
-    <div
-        class="na-timeline-card__handle na-timeline-card__handle--bottom"
-        role="separator"
-        onpointerdown={(event) => handleResizePointerDown(event, "resize-end")}
-    ></div>
+    {#if !workspace?.touch}<div
+            class="na-timeline-card__handle na-timeline-card__handle--bottom"
+            role="separator"
+            onpointerdown={(event) => handleResizePointerDown(event, "resize-end")}
+        ></div>{/if}
 </div>
 
 <style lang="scss">
     .na-timeline-card.na-timeline-card--touch {
-        touch-action: none;
+        touch-action: pan-y;
         overflow: visible;
-
-        &:not(.na-timeline-card--dragging) {
-            z-index: auto;
-        }
-
+        cursor: pointer;
         .na-timeline-card__content {
             max-height: 100%;
             box-sizing: border-box;
+            padding-right: 28px;
         }
-
-        // Separate outward targets so adjacent short cards remain distinguishable.
-        .na-timeline-card__handle {
-            z-index: 13;
-            background: var(--na-color-info-bg);
-
-            &::before {
-                content: "";
-                position: absolute;
-                inset-inline: 0;
-                height: 22px;
-            }
-
-            &--top {
-                right: 50%;
-                &::before {
-                    bottom: 0;
-                }
-            }
-            &--bottom {
-                left: 50%;
-                &::before {
-                    top: 0;
-                }
-            }
-        }
+    }
+    .na-timeline-card.na-timeline-card--selected {
+        z-index: 25;
+    }
+    .na-timeline-card__edit {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        overflow: hidden;
+        width: 26px;
+    }
+    .na-timeline-card__tools {
+        position: absolute;
+        top: calc(100% + 4px);
+        width: min(284px, calc(100vw - 24px));
+        padding: 4px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: 8px;
+        background: var(--b3-theme-surface);
+        box-shadow: var(--na-shadow-dialog);
+        cursor: default;
+    }
+    .na-timeline-card__tools--above {
+        top: auto;
+        bottom: calc(100% + 4px);
+    }
+    .na-timeline-card__tools-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .na-timeline-card__tools-time {
+        padding: 4px;
+        text-align: center;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
     }
     .na-timeline-card {
         position: absolute;

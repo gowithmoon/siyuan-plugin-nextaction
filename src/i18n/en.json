@@ -1,4 +1,7 @@
 {
+    "timelineMove": "Move",
+    "timelineEnd": "End time",
+
     "pluginName": "NextAction",
     "navFocus": "Focus",
     "navOrganize": "Organize",
