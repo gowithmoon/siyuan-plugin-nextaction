@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build, type Alias } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { chromium } from "playwright-core";
 import svelteConfig from "../../svelte.config.js";
 import { frontendInlineDynamicImports, frontendViteAliases } from "../../vite.shared.ts";
 import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./browser.ts";
@@ -46,6 +47,7 @@ export type SvelteBrowserTestOptions = {
     prepareFixture?: (fixtureRoot: string) => void;
     timeout?: number;
     virtualTimeBudget?: number;
+    realTime?: boolean;
 };
 
 function fixturePrefix(name: string): string {
@@ -144,6 +146,26 @@ export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
                 rollupOptions: { output: { inlineDynamicImports: frontendInlineDynamicImports } },
             },
         });
+
+        if (options.realTime) {
+            const timeout = options.timeout ?? 20_000;
+            const browser = await chromium.launch({
+                executablePath: options.browserExecutable ?? findBrowserExecutable(),
+                headless: true,
+                timeout,
+                args: ["--allow-file-access-from-files", "--disable-web-security", ...(options.browserArgs ?? [])],
+            });
+            try {
+                const page = await browser.newPage({ viewport: null });
+                await page.goto(pathToFileURL(join(fixtureRoot, "dist", "index.html")).href, { timeout });
+                const result = page.locator("#browser-result");
+                await result.waitFor({ state: "attached", timeout });
+                const payload = (await result.textContent())!;
+                return JSON.parse(payload.startsWith("na-json:") ? decodeURIComponent(payload.slice(8)) : payload);
+            } finally {
+                await browser.close();
+            }
+        }
 
         const rendered = await runBrowser(
             options.browserExecutable ?? findBrowserExecutable(),

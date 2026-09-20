@@ -10,7 +10,7 @@ test("移动时间轴：仅长按空白排期、独立手柄和滚动期间持�
     const result = await runSvelteBrowserTest<any>({
         fixtureName: "mobile-timeline",
         browserArgs: ["--window-size=390,844"],
-        virtualTimeBudget: 12000,
+        realTime: true,
         files: {
             "siyuan.js": `export class Menu{addItem(){}addSeparator(){}open(){}} export function showMessage(){window.errors++;} export function openTab(){} export function confirm(){}`,
             "Harness.svelte": `<script>
@@ -44,8 +44,14 @@ await pause(200);await tick();const out={};
 const col=document.querySelector('.na-timeline-view .na-timeline-column');const body=col.querySelector('.na-timeline-column__body');
 const card=()=>col.querySelector('.na-timeline-card');const sheet=()=>document.querySelector('.na-option-picker');
 const emit=(el,type,x,y,id=1)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerType:'touch',pointerId:id,isPrimary:true,button:0,clientX:x,clientY:y}));
-async function reset(start=300,end=360){window.reset(start,end);await tick();col.scrollTop=240;await pause(20);}
-async function blank(minute=420,long=false){col.scrollTop=240;await pause(20);const r=col.getBoundingClientRect(),x=r.left+80,y=r.top+minute*1.2-col.scrollTop;emit(body,'pointerdown',x,y);if(long)await pause(470);emit(body,'pointerup',x,y);await tick();}
+// Regression: 程序滚动的延迟事件会取消下一次长按，使用真实时间并等待两帧处理滚动与布局后再发送触摸。
+async function prepareScroll(){
+ col.scrollTop=240;
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ await tick();
+}
+async function reset(start=300,end=360){window.reset(start,end);await tick();await prepareScroll();}
+async function blank(minute=420,long=false){await prepareScroll();const r=col.getBoundingClientRect(),x=r.left+80,y=r.top+minute*1.2-col.scrollTop;emit(body,'pointerdown',x,y);if(long)await pause(470);emit(body,'pointerup',x,y);await tick();if(long&&!sheet())throw new Error('长按空白后未显示任务选择器');}
 async function close(){document.querySelector('.na-page-host__header button')?.click();await tick();}
 const root=document.querySelector('.na-app');
 const rootScrolls=[];root.addEventListener('scroll',()=>rootScrolls.push(root.scrollTop));

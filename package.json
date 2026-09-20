@@ -51,6 +51,7 @@
     "globals": "^17.11.0",
     "mini-css-extract-plugin": "^2",
     "npm-run-all": "^4",
+    "playwright-core": "^1.63.0",
     "prettier": "^3.9.6",
     "prettier-plugin-svelte": "^3.5.2",
     "sass": "^1",

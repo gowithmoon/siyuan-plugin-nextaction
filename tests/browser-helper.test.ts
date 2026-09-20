@@ -32,6 +32,20 @@ window.__NA_BROWSER_RESULT__({ text: document.querySelector("button")?.textConte
     assert.deepEqual(result, { text: "ready", calls: ["ready"] });
 });
 
+test("真实时间浏览器等待异步结果并推进渲染帧", async () => {
+    // Regression: 虚拟计时器与渲染帧不同步，导致滚动事件打断模拟长按。
+    const result = await runSvelteBrowserTest<{ frames: number }>({
+        fixtureName: "shared-harness-real-time",
+        realTime: true,
+        files: {
+            "main.js": `setTimeout(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => window.__NA_BROWSER_RESULT__({ frames: 2 })));
+}, 50);`,
+        },
+    });
+    assert.deepEqual(result, { frames: 2 });
+});
+
 // Regression: 构建失败时临时 fixture 曾绕过 finally，遗留在系统临时目录中。
 test("共享 Svelte 浏览器 Harness 在构建失败后清理 fixture", async () => {
     const fixtureName = `shared-harness-failure-${process.pid}`;
