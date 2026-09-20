@@ -436,6 +436,21 @@ export class TaskLifecycleService {
             throw codedError("errProjectRequiresDocument", RPC_ERROR_PROJECT_REQUIRES_DOCUMENT);
         }
 
+        // When the target is a paragraph/heading inside a list item, start from
+        // that list item so the recursive query also reaches nested lists.
+        const startRow = await this.api.query<{ type?: string; parent_id?: string }>(
+            sql`SELECT type, parent_id FROM blocks WHERE id = ${blockId} LIMIT 1`,
+        );
+        const startType = startRow?.[0]?.type || "";
+        const startParentId = startRow?.[0]?.parent_id || "";
+        let startId = blockId;
+        if ((startType === "p" || startType === "h") && startParentId) {
+            const parentRow = await this.api.query<{ type?: string }>(
+                sql`SELECT type FROM blocks WHERE id = ${startParentId} LIMIT 1`,
+            );
+            if (parentRow?.[0]?.type === "i") startId = startParentId;
+        }
+
         const rows = await this.api.query<{
             id: string;
             parent_id: string;
@@ -443,7 +458,7 @@ export class TaskLifecycleService {
             subtype: string;
             sort: number;
         }>(sql`WITH RECURSIVE selected(id, parent_id, type, subtype, sort) AS (
-                SELECT id, parent_id, type, subtype, sort FROM blocks WHERE id = ${blockId}
+                SELECT id, parent_id, type, subtype, sort FROM blocks WHERE id = ${startId}
                 UNION ALL
                 SELECT b.id, b.parent_id, b.type, b.subtype, b.sort
                   FROM blocks b INNER JOIN selected s ON b.parent_id = s.id
