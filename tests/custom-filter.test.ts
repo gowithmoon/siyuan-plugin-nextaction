@@ -43,6 +43,39 @@ function blockIds(tasks: TaskCacheEntry[]): string[] {
     return tasks.map((task) => task.blockId);
 }
 
+test("按 order 降序排列任务", () => {
+    // Regression: Dock 侧边栏未排序导致新建任务沉底
+    const tasks = [
+        taskFactory("low-order", { order: 1 }),
+        taskFactory("high-order", { order: 3 }),
+        taskFactory("mid-order", { order: 2 }),
+    ];
+
+    assert.deepEqual(blockIds(sortTasksBy(tasks, "order", false, [])), ["high-order", "mid-order", "low-order"]);
+});
+
+test("order 排序按 due、effectiveImportance 和 blockId 依次决胜", () => {
+    const tasks = [
+        taskFactory("same-id-b", { order: 1, due: "2026-01-02", importance: 4 }),
+        taskFactory("same-id-a", { order: 1, due: "2026-01-02", importance: 4 }),
+        taskFactory("priority-high", { order: 1, due: "2026-01-02", importance: 4, priority: "high" }),
+        taskFactory("lower-importance", { order: 1, due: "2026-01-02", importance: 3 }),
+        taskFactory("higher-importance", { order: 1, due: "2026-01-02", importance: 5 }),
+        taskFactory("due-late", { order: 1, due: "2026-01-03", importance: 8 }),
+        taskFactory("due-early", { order: 1, due: "2026-01-01", importance: 1 }),
+    ];
+
+    assert.deepEqual(blockIds(sortTasksBy(tasks, "order", false, [])), [
+        "due-early",
+        "higher-importance",
+        "priority-high",
+        "same-id-a",
+        "same-id-b",
+        "lower-importance",
+        "due-late",
+    ]);
+});
+
 test("自定义字段 equals 过滤只保留值相等的任务", () => {
     const tasks = [taskWithFields("matching", { f1: "Alpha" }), taskWithFields("different", { f1: "Beta" })];
 

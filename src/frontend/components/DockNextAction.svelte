@@ -1,6 +1,6 @@
 <script lang="ts">
     import { taskStore } from "../stores/task-store";
-    import { isNextActionCandidate } from "../utils/filter";
+    import { isNextActionCandidate, sortTasksBy } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
     import NaTaskList from "../ui/NaTaskList.svelte";
     import NaSearchInput from "../ui/NaSearchInput.svelte";
@@ -25,15 +25,17 @@
         ),
     );
 
+    let sortedTasks = $derived(sortTasksBy(nextActionTasks, "order", false, $taskStore.settings.customFields));
+
     let filteredTasks = $derived(
         searchText.trim()
-            ? nextActionTasks.filter((t) => {
+            ? sortedTasks.filter((t) => {
                   const q = searchText.toLowerCase();
                   if (t.title.toLowerCase().includes(q)) return true;
                   if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
                   return false;
               })
-            : nextActionTasks,
+            : sortedTasks,
     );
 </script>
 
