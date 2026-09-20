@@ -12,6 +12,7 @@ interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
     onRemoved: (blockId: string) => void;
     onEdit?: (task: TaskCacheEntry) => void;
+    onCreateChild?: (task: TaskCacheEntry) => void;
     onMyDayToggle?: (blockId: string, inMyDay: boolean) => void;
     onScheduleEdit?: (task: TaskCacheEntry) => void;
     onReminderEdit?: (blockId: string) => void;
@@ -178,6 +179,15 @@ export function showTaskContextMenu(
             },
         });
 
+        menu.addSeparator();
+    }
+
+    if (callbacks.onCreateChild) {
+        menu.addItem({
+            icon: "iconAdd",
+            label: i18n?.createChildTask || "Create child task",
+            click: () => callbacks.onCreateChild!(task),
+        });
         menu.addSeparator();
     }
 

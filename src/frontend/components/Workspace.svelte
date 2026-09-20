@@ -277,6 +277,7 @@
             onUpdated: (updated: TaskCacheEntry) => void;
             onRemoved: (blockId: string) => void;
             onEdit: (task: TaskCacheEntry) => void;
+            onCreateChild?: (task: TaskCacheEntry) => void;
             onMyDayToggle?: (blockId: string, isInMyDay: boolean) => Promise<void>;
             onScheduleEdit?: (task: TaskCacheEntry) => void;
             onReminderEdit?: (blockId: string) => void;
@@ -301,6 +302,7 @@
             },
             onEdit: handleEdit,
         };
+        callbacks.onCreateChild = (task) => openCreate(task);
         if (inMyDay) callbacks.onScheduleEdit = workspace.openSchedule;
         callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
             try {

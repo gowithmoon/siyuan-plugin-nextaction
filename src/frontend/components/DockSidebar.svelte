@@ -86,6 +86,7 @@
             },
             onEdit: handleEdit,
         };
+        callbacks.onCreateChild = openCreateChild;
         callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
             try {
                 let myDayState;
