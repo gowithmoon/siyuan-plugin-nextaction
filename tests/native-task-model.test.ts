@@ -257,6 +257,54 @@ test("段落和标题转换为原生任务，递归转换跳过已有原生任�
     await assert.rejects(service.convertToTask(paragraphId, undefined, "2"), /errProjectRequiresDocument/);
 });
 
+test("无序列表上从父文本块触发含子项转换，父与子文本块都转为任务", async () => {
+    // Regression: CTE 起点是文本块时，子树递归覆盖不到嵌套子列表的文本块。
+    const api = new FakeSiyuanApi();
+    const documentId = "20260920120000-docroot";
+    const outerListId = "20260920120001-outlist";
+    const outerItemId = "20260920120002-outitem";
+    const parentTextId = "20260920120003-partxtx";
+    const innerListId = "20260920120004-innlist";
+    const innerItemId = "20260920120005-innitem";
+    const childTextId = "20260920120006-chltxtx";
+    api.addBlock(documentId, "d", "Document");
+    api.addBlock(outerListId, "l", "", "notebook", "/Document", {
+        parentId: documentId,
+        subtype: "u",
+    });
+    api.addBlock(outerItemId, "i", "Parent", "notebook", "/Document", {
+        parentId: outerListId,
+        subtype: "u",
+    });
+    api.addBlock(parentTextId, "p", "Parent", "notebook", "/Document", { parentId: outerItemId });
+    api.addBlock(innerListId, "l", "", "notebook", "/Document", {
+        parentId: outerItemId,
+        subtype: "u",
+    });
+    api.addBlock(innerItemId, "i", "Child", "notebook", "/Document", {
+        parentId: innerListId,
+        subtype: "u",
+    });
+    api.addBlock(childTextId, "p", "Child", "notebook", "/Document", { parentId: innerItemId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    const result = await service.convertToTaskWithChildren(parentTextId);
+    assert.deepEqual(result, { converted: 2, skipped: 0 });
+    assert.equal(api.blocks.get(parentTextId)?.type, "l");
+    assert.equal(api.blocks.get(parentTextId)?.subtype, "t");
+    assert.equal(api.blocks.get(childTextId)?.type, "l");
+    assert.equal(api.blocks.get(childTextId)?.subtype, "t");
+
+    const nativeTasks = cache.getAll().filter((task) => task.identificationSource === "native");
+    assert.equal(nativeTasks.length, 2);
+    const parentTask = nativeTasks.find((task) => task.title === "Parent");
+    const childTask = nativeTasks.find((task) => task.title === "Child");
+    assert.ok(parentTask && childTask);
+});
+
 test("已有原生任务再次转换保持 ID 并补齐缺失属性", async () => {
     // Regression: convert-to-task on a native task is a no-op, not a nested task conversion.
     const { api, service } = setupNativeTask("- [X] Existing task");
