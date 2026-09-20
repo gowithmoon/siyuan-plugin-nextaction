@@ -41,10 +41,10 @@ function assertCleanWorktree(commandOutput) {
     }
 }
 
-function assertReleaseBranch(commandOutput) {
+function assertMainBranch(commandOutput) {
     const branch = commandOutput("git", ["branch", "--show-current"]);
-    if (!branch || branch === "main") {
-        throw new Error("Create and switch to a release branch before preparing a release; main is protected.");
+    if (branch !== "main") {
+        throw new Error(`Release commits must be prepared on main; current branch is ${branch || "detached HEAD"}.`);
     }
     return branch;
 }
@@ -106,7 +106,14 @@ export function prepareRelease(releaseArg, options = {}) {
     const changelogPath = path.join(projectDirectory, "CHANGELOG.md");
 
     assertCleanWorktree(commandOutput);
-    const branch = assertReleaseBranch(commandOutput);
+    const branch = assertMainBranch(commandOutput);
+
+    runCommand("git", ["fetch", "origin", "main", "--tags"]);
+    const head = commandOutput("git", ["rev-parse", "HEAD"]);
+    const remoteMain = commandOutput("git", ["rev-parse", "refs/remotes/origin/main"]);
+    if (head !== remoteMain) {
+        throw new Error("Local main is not synchronized with origin/main. Run git pull --ff-only origin main first.");
+    }
 
     const pkg = readJson(packageJsonPath);
     const plugin = readJson(pluginJsonPath);
@@ -131,8 +138,8 @@ export function prepareRelease(releaseArg, options = {}) {
     runCommand("git", ["commit", "-m", `chore: release ${tag}`]);
 
     console.log(`Release commit prepared on ${branch}: ${tag}`);
-    console.log(`Push ${branch}, open a pull request, and merge it into main.`);
-    console.log("After the merge, update local main and run: pnpm run release:publish");
+    console.log("Push main and wait for the Quality workflow to pass.");
+    console.log("Then run: pnpm run release:publish");
 
     return { branch, tag, version };
 }

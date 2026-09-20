@@ -226,10 +226,12 @@ pnpm run test:integration:mcp     # 可选：测试 MCP 集成
 运行 `pnpm run release` 前，将 `.env.example` 复制为已被忽略的 `.env.local`，并把
 `SIYUAN_PLUGINS_DIR` 设置为思源工作空间 `data/plugins` 目录的绝对路径。同名系统环境变量优先级更高，可用于临时部署到其他工作空间。
 
+本仓库采用轻量主干开发：小型、低风险的修改在本地通过 `pnpm run check` 后直接推送到 `main`；较大功能以及涉及数据写入、RPC、同步或大范围界面的高风险修改使用短期分支和 Pull Request，并在 Quality 通过后 squash 合并。`main` 禁止删除和强推；推送后的 CI 失败通过追加修复 commit 或 revert 处理，不改写远端历史。
+
 <details>
 <summary><b>发布新版本</b></summary>
 
-发布由 Git tag 触发，发布 commit 必须通过 Pull Request 进入受保护的 `main` 分支。发布前，从最新的 `origin/main` 创建发布分支，在 [CHANGELOG.md](./CHANGELOG.md) 的 `[Unreleased]` 区域中选择合适分类，至少填写一条以 `- ` 开头的更新内容，并提交该更新日志改动。没有内容的分类不会出现在 GitHub Release 正文中。
+发布由 Git tag 触发。发布前，切换到与 `origin/main` 同步的本地 `main`，在 [CHANGELOG.md](./CHANGELOG.md) 的 `[Unreleased]` 区域中选择合适分类，至少填写一条以 `- ` 开头的更新内容，提交并推送该更新日志改动。没有内容的分类不会出现在 GitHub Release 正文中。
 
 ```bash
 pnpm run release:patch
@@ -239,9 +241,9 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-这些命令必须在非 `main` 分支运行。命令会校验并封版更新日志，在需要时同步 `package.json` 和 `plugin.json` 的版本号，构建发布包，并创建发布 commit；不会推送分支，也不会创建 tag。随后手动推送发布分支、创建 Pull Request，等待检查通过后合并到 `main`。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。
+这些命令必须在与 `origin/main` 完全同步的本地 `main` 上运行。命令会校验并封版更新日志，在需要时同步 `package.json` 和 `plugin.json` 的版本号，构建发布包，并创建发布 commit；不会推送 commit，也不会创建 tag。随后手动推送 `main`，等待 Quality 工作流通过。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。
 
-Pull Request 合并后，同步本地 `main` 并发布 tag：
+Quality 通过后，确认本地 `main` 已与远端同步，再发布 tag：
 
 ```bash
 git switch main

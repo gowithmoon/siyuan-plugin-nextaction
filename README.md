@@ -227,10 +227,12 @@ Before using `pnpm run release`, copy `.env.example` to the ignored `.env.local`
 `SIYUAN_PLUGINS_DIR` to the absolute path of the workspace's `data/plugins` directory. A system environment variable
 with the same name takes precedence, which is useful when temporarily deploying to another workspace.
 
+This repository uses lightweight trunk-based development. Push small, low-risk changes directly to `main` after `pnpm run check` passes locally. Use a short-lived branch and pull request for larger features or high-risk changes involving data writes, RPC, synchronization, or broad UI work, then squash-merge after Quality passes. Deleting or force-pushing `main` is blocked; fix a failed post-push check with a follow-up commit or revert instead of rewriting remote history.
+
 <details>
 <summary><b>Releasing a new version</b></summary>
 
-Releases are driven by Git tags, while release commits must enter the protected `main` branch through a pull request. Start from an up-to-date `origin/main`, create a release branch, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), and commit that changelog update. Empty categories are omitted from the GitHub Release notes.
+Releases are driven by Git tags. Before releasing, switch to a local `main` that is synchronized with `origin/main`, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), then commit and push that changelog update. Empty categories are omitted from the GitHub Release notes.
 
 ```bash
 pnpm run release:patch
@@ -240,9 +242,9 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-These commands must run on a non-`main` branch. They validate and finalize the changelog, update `package.json` and `plugin.json` when needed, build the release package, and create the release commit. They do not push the branch or create a tag. Push the branch, open a pull request, and merge it into `main` after all checks pass.
+These commands must run on a local `main` that exactly matches `origin/main`. They validate and finalize the changelog, update `package.json` and `plugin.json` when needed, build the release package, and create the release commit. They do not push the commit or create a tag. Push `main` manually and wait for the Quality workflow to pass.
 
-After the pull request is merged, synchronize local `main` and publish the tag:
+After Quality passes, confirm that local `main` is synchronized with the remote and publish the tag:
 
 ```bash
 git switch main

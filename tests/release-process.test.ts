@@ -23,8 +23,8 @@ function createProject(version = "1.2.3"): string {
     return projectRoot;
 }
 
-test("版本准备只创建发布 commit，不会提前推送分支或 tag", (t) => {
-    // Regression: 旧发布脚本会在发布 PR 合并前创建并推送 tag，绕过受保护 main 的合并流程。
+test("版本准备在同步的 main 上只创建发布 commit，不会提前推送或创建 tag", (t) => {
+    // Regression: 发布准备曾强制创建仅用于单人合并的发布分支和 Pull Request。
     const projectRoot = createProject();
     t.after(() => rmSync(projectRoot, { recursive: true, force: true }));
     const calls: CommandCall[] = [];
@@ -34,7 +34,9 @@ test("版本准备只创建发布 commit，不会提前推送分支或 tag", (t)
         now: new Date(2026, 7, 26),
         commandOutput(command: string, args: string[]): string {
             if (command === "git" && args.join(" ") === "status --porcelain") return "";
-            if (command === "git" && args.join(" ") === "branch --show-current") return "release/v1.2.4";
+            if (command === "git" && args.join(" ") === "branch --show-current") return "main";
+            if (command === "git" && args.join(" ") === "rev-parse HEAD") return "main-commit";
+            if (command === "git" && args.join(" ") === "rev-parse refs/remotes/origin/main") return "main-commit";
             throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
         },
         runCommand(command: string, args: string[]): void {
@@ -42,18 +44,19 @@ test("版本准备只创建发布 commit，不会提前推送分支或 tag", (t)
         },
     });
 
-    assert.deepEqual(result, { branch: "release/v1.2.4", tag: "v1.2.4", version: "1.2.4" });
+    assert.deepEqual(result, { branch: "main", tag: "v1.2.4", version: "1.2.4" });
     assert.equal(JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8")).version, "1.2.4");
     assert.equal(JSON.parse(readFileSync(join(projectRoot, "plugin.json"), "utf8")).version, "1.2.4");
     assert.match(readFileSync(join(projectRoot, "CHANGELOG.md"), "utf8"), /^## \[1\.2\.4\] - 2026-08-26$/m);
     assert.deepEqual(calls, [
+        { command: "git", args: ["fetch", "origin", "main", "--tags"] },
         { command: "pnpm", args: ["run", "release:package"] },
         { command: "git", args: ["add", "package.json", "plugin.json", "CHANGELOG.md"] },
         { command: "git", args: ["commit", "-m", "chore: release v1.2.4"] },
     ]);
 });
 
-test("拒绝直接在 main 上准备发布 commit", (t) => {
+test("拒绝在非 main 分支准备发布 commit", (t) => {
     const projectRoot = createProject();
     t.after(() => rmSync(projectRoot, { recursive: true, force: true }));
 
@@ -63,15 +66,41 @@ test("拒绝直接在 main 上准备发布 commit", (t) => {
                 projectRoot,
                 commandOutput(command: string, args: string[]): string {
                     if (command === "git" && args.join(" ") === "status --porcelain") return "";
-                    if (command === "git" && args.join(" ") === "branch --show-current") return "main";
+                    if (command === "git" && args.join(" ") === "branch --show-current") return "release/v1.2.4";
                     throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
                 },
                 runCommand(): void {
                     assert.fail("main 分支校验失败后不应执行任何写操作");
                 },
             }),
-        /main is protected/,
+        /must be prepared on main/,
     );
+});
+
+test("拒绝在落后或领先 origin 的 main 上准备发布 commit", (t) => {
+    const projectRoot = createProject();
+    t.after(() => rmSync(projectRoot, { recursive: true, force: true }));
+    const calls: CommandCall[] = [];
+
+    assert.throws(
+        () =>
+            prepareRelease("patch", {
+                projectRoot,
+                commandOutput(command: string, args: string[]): string {
+                    const invocation = `${command} ${args.join(" ")}`;
+                    if (invocation === "git status --porcelain") return "";
+                    if (invocation === "git branch --show-current") return "main";
+                    if (invocation === "git rev-parse HEAD") return "local-commit";
+                    if (invocation === "git rev-parse refs/remotes/origin/main") return "remote-commit";
+                    throw new Error(`Unexpected command: ${invocation}`);
+                },
+                runCommand(command: string, args: string[]): void {
+                    calls.push({ command, args });
+                },
+            }),
+        /not synchronized with origin\/main/,
+    );
+    assert.deepEqual(calls, [{ command: "git", args: ["fetch", "origin", "main", "--tags"] }]);
 });
 
 test("合并后只从同步的 main 创建并推送版本 tag", (t) => {
