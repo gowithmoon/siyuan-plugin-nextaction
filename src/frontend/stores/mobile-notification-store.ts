@@ -51,24 +51,20 @@ let initialized = false;
 let initialization: Promise<void> | null = null;
 let lifecycleGeneration = 0;
 let runtimeOverride: MobileNotificationRuntime | null = null;
-let runtimePromise: Promise<MobileNotificationRuntime> | null = null;
 const storageMutex = new Mutex();
 
-/** Test and embedding seam for the platform boundary. Production callers leave this unset. */
+/**
+ * Test and embedding seam for the platform boundary. The production entrypoint
+ * injects SiYuan's statically imported CommonJS API; dynamic import("siyuan")
+ * cannot resolve the host-provided module from the plugin bundle.
+ */
 export function configureMobileNotificationRuntime(runtime: MobileNotificationRuntime | null): void {
     runtimeOverride = runtime;
-    runtimePromise = null;
 }
 
 async function getPlatformRuntime(): Promise<MobileNotificationRuntime> {
-    if (runtimeOverride) return runtimeOverride;
-    if (!runtimePromise) {
-        runtimePromise = import("siyuan").then((siyuan) => ({
-            getFrontend: siyuan.getFrontend,
-            platformUtils: siyuan.platformUtils,
-        }));
-    }
-    return runtimePromise;
+    if (!runtimeOverride) throw new Error("SiYuan platform runtime is not configured");
+    return runtimeOverride;
 }
 
 export function shouldScheduleSystemNotification(runtime: MobileNotificationRuntime | null = runtimeOverride): boolean {

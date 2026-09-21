@@ -45,12 +45,12 @@ export function showMessage() {}
             "main.js": `
 import { mount, unmount, tick } from "svelte";
 import { get } from "svelte/store";
-import { setFrontend, sent, cancelled } from "siyuan";
+import { setFrontend, getFrontend, platformUtils, sent, cancelled } from "siyuan";
 import SettingsPanel from ${source("src/frontend/components/SettingsPanel.svelte")};
 import NotificationHost from ${source("src/frontend/components/NotificationHost.svelte")};
 import { taskStore } from ${source("src/frontend/stores/task-store.ts")};
 import { DEFAULT_SETTINGS } from ${source("src/shared/settings.ts")};
-import { initMobileNotificationStore, destroyMobileNotificationStore } from ${source("src/frontend/stores/mobile-notification-store.ts")};
+import { configureMobileNotificationRuntime, initMobileNotificationStore, destroyMobileNotificationStore } from ${source("src/frontend/stores/mobile-notification-store.ts")};
 import { initReminderStore, destroyReminderStore, notificationQueue } from ${source("src/frontend/stores/reminder-store.ts")};
 import en from ${source("src/i18n/en.json")};
 import zh from ${source("src/i18n/zh-CN.json")};
@@ -69,6 +69,7 @@ async function run() {
     for (const frontend of ["browser-desktop", "browser-mobile", "desktop", "desktop-window", "mobile"]) {
         for (const [locale, i18n] of [["en", en], ["zh-CN", zh]]) {
             setFrontend(frontend);
+            configureMobileNotificationRuntime({ getFrontend, platformUtils });
             sent.length = 0;
             cancelled.length = 0;
             const supported = !frontend.startsWith("browser");
@@ -138,6 +139,7 @@ async function run() {
             result.toastAfterRestart = get(notificationQueue).some(item => item.blockId === "toast");
             destroyReminderStore();
             destroyMobileNotificationStore();
+            configureMobileNotificationRuntime(null);
             taskStore.disposeSync();
             await unmount(host);
             await unmount(panel);

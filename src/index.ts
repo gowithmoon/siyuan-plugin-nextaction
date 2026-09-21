@@ -1,4 +1,4 @@
-import { Plugin, getFrontend } from "siyuan";
+import { Plugin, getFrontend, platformUtils } from "siyuan";
 import "./index.scss";
 import { configureDocumentNavigation } from "./frontend/controllers/document-navigation";
 import { configureDocumentNavigationForApp } from "./frontend/controllers/siyuan-document-navigation";
@@ -9,6 +9,7 @@ import { FrontendRuntime } from "./frontend/controllers/frontend-runtime";
 import { TaskCommandController } from "./frontend/controllers/task-command-controller";
 import { EditorTaskIntegration } from "./frontend/controllers/editor-task-integration";
 import { asI18nStrings } from "./shared/i18n";
+import { configureMobileNotificationRuntime } from "./frontend/stores/mobile-notification-store";
 
 export default class NextActionPlugin extends Plugin {
     private bridge!: KernelBridge;
@@ -20,6 +21,10 @@ export default class NextActionPlugin extends Plugin {
     private editorIntegration?: EditorTaskIntegration;
 
     onload() {
+        configureMobileNotificationRuntime({
+            getFrontend,
+            platformUtils,
+        });
         configureDocumentNavigationForApp(this.app);
         this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
 
@@ -56,6 +61,7 @@ export default class NextActionPlugin extends Plugin {
     }
 
     onunload() {
+        configureMobileNotificationRuntime(null);
         configureDocumentNavigation(undefined);
         this.editorIntegration?.dispose();
         this.editorIntegration = undefined;
