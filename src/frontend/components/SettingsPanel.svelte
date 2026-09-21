@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { get } from "svelte/store";
+    import { taskStore } from "../stores/task-store";
+    import { applyMobileNotificationSettings } from "../stores/mobile-notification-store";
     import { onMount, tick } from "svelte";
     import { confirm } from "siyuan";
     import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
@@ -53,6 +56,8 @@
 
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
     let saving = $state(false);
+    let postSaveBusy = $state(false);
+    let postSavePending = $state(false);
     let rebuilding = $state(false);
     let error = $state("");
     let modernTab: ModernTabId = $state("general");
@@ -119,7 +124,8 @@
     function syncControllerState() {
         const state = controller.snapshot;
         current = state.saved;
-        saving = state.saveState === "saving";
+        saving = state.saveState === "saving" || postSaveBusy;
+        postSavePending = state.postSavePending;
         rebuilding = state.maintenanceBusy.has("cache");
         purgingFieldId = [...state.maintenanceBusy].find((id) => id.startsWith("purge:"))?.slice("purge:".length) || "";
         error = state.error;
@@ -327,29 +333,40 @@
     }
 
     async function handleSave() {
-        controller.edit(buildSettings());
-        const result = await controller.save((settings) => bridge.updateSettings(settings));
+        if (saving || postSaveBusy) return;
+        postSaveBusy = true;
         syncControllerState();
-        if (!result) return;
-        applySettings(result);
         try {
-            await onSave(result);
-        } catch (e: unknown) {
-            console.error("[NextAction] settings post-save refresh failed:", e);
-            controller.reportPostSaveError(
-                i18n?.settingsSavedRefreshFailed ||
-                    "Settings were saved, but task order refresh failed. Use Refresh or maintenance tools to retry.",
-            );
+            controller.edit(buildSettings());
+            const result = await controller.save((settings) => bridge.updateSettings(settings));
             syncControllerState();
-        }
-        try {
-            mcpStatus = await bridge.getMcpStatus();
-        } catch (e: unknown) {
-            console.error("[NextAction] MCP status refresh after settings save failed:", e);
-            controller.reportPostSaveError(
-                i18n?.settingsSavedMcpRefreshFailed ||
-                    "Settings were saved, but MCP tool status could not be refreshed. Retry or reopen settings.",
-            );
+            if (!result) return;
+            applySettings(result);
+            try {
+                await controller.refreshAfterSave(onSave, async (previous, next) => {
+                    await applyMobileNotificationSettings(
+                        previous.reminderSettings,
+                        next.reminderSettings,
+                        get(taskStore).allTasks,
+                    );
+                });
+            } catch (e: unknown) {
+                console.error("[NextAction] settings post-save refresh failed:", e);
+                controller.reportPostSaveError(i18n.settingsSavedRefreshFailed);
+                syncControllerState();
+            }
+            try {
+                mcpStatus = await bridge.getMcpStatus();
+            } catch (e: unknown) {
+                console.error("[NextAction] MCP status refresh after settings save failed:", e);
+                controller.reportPostSaveError(
+                    i18n?.settingsSavedMcpRefreshFailed ||
+                        "Settings were saved, but MCP tool status could not be refreshed. Retry or reopen settings.",
+                );
+                syncControllerState();
+            }
+        } finally {
+            postSaveBusy = false;
             syncControllerState();
         }
     }
@@ -839,6 +856,7 @@
                     bind:reminderDueSound
                     bind:reminderReviewSound
                     bind:reminderSoundEnabled
+                    bind:reminderSystemNotificationEnabled
                     bind:newOffsetValue
                     bind:newOffsetUnit
                     soundIds={REMINDER_SOUND_IDS}
@@ -915,7 +933,7 @@
                     type="button"
                     class="b3-button b3-button--primary"
                     onclick={handleSave}
-                    disabled={saving || !settingsLoaded || !isDirty}
+                    disabled={saving || !settingsLoaded || (!isDirty && !postSavePending)}
                     >{saving ? i18n?.loading || "…" : i18n?.save || "Save"}</button
                 >
             </div>

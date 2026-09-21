@@ -128,7 +128,7 @@ test("设置保存链当前由面板持久化、宿主执行后处理", () => {
     const host = source("../src/frontend/controllers/settings-dialog-controller.ts");
 
     assert.match(panel, /controller\.save\(\(settings\) => bridge\.updateSettings\(settings\)\)/);
-    assert.match(panel, /await onSave\(result\)/);
+    assert.match(panel, /await controller\.refreshAfterSave\(onSave/);
     assert.match(panel, /settingsSavedRefreshFailed/);
     assert.match(host, /await this\.bridge\.recalcAllOrders\(\)/);
     assert.match(host, /taskStore\.applySettingsUpdate\(settings\)/);

@@ -12,6 +12,7 @@ import {
     initMobileNotificationStore,
     rebuildAllMobileNotifications,
     scheduleMobileNotifications,
+    supportsSystemNotifications,
     updateMobileNotifications,
     type MobileNotificationRuntime,
 } from "../src/frontend/stores/mobile-notification-store.ts";
@@ -35,6 +36,7 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
     let persisted: unknown = {};
     const sent: Array<{ id: number; options: Record<string, unknown> }> = [];
     const cancelled: number[] = [];
+    const savedPaths: string[] = [];
     const plugin: FakePlugin = {
         i18n: {
             reminderSystemNotificationBody: "Due at {time}",
@@ -43,7 +45,8 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
         async loadData() {
             return persisted;
         },
-        async saveData(_path, value) {
+        async saveData(path, value) {
+            savedPaths.push(path);
             persisted = JSON.parse(JSON.stringify(value));
         },
     };
@@ -65,6 +68,7 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
         plugin: plugin as never,
         sent,
         cancelled,
+        savedPaths,
         readStorage: () => persisted,
         setStorage: (value: unknown) => {
             persisted = value;
@@ -230,4 +234,80 @@ test("默认系统通知开关关闭且非法值被设置校验拒绝", async ()
         validateSettings({ reminderSettings: { systemNotificationEnabled: "yes" } as never }),
         "reminderSettings.systemNotificationEnabled must be boolean",
     );
+});
+
+test("保存系统通知开关后重建完整集合，关闭后只清理系统通知文件", async () => {
+    // Regression: settings changes must update native notifications only after saving.
+    const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const harness = createHarness();
+    await initMobileNotificationStore(harness.plugin);
+    const off = DEFAULT_SETTINGS.reminderSettings;
+    const on = { ...off, systemNotificationEnabled: true };
+    const tasks = [futureTask("task-a", 10), futureTask("task-b", 11)];
+    await applyMobileNotificationSettings(off, on, tasks, NOW);
+    assert.equal(harness.sent.length, 2);
+    taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
+    await applyMobileNotificationSettings(on, off, tasks, NOW);
+    assert.deepEqual(harness.cancelled, [1, 2]);
+    assert.deepEqual(harness.readStorage(), {});
+    assert.ok(harness.savedPaths.every((path) => path === "mobile-notifications.json"));
+});
+
+test("修改全局提前量重新校准任务集合，无关设置不触碰已注册通知", async () => {
+    const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const harness = createHarness();
+    await initMobileNotificationStore(harness.plugin);
+    const on = get(taskStore).settings.reminderSettings;
+    await rebuildAllMobileNotifications([futureTask("task-a", 10), futureTask("removed-task", 11)], NOW);
+    await applyMobileNotificationSettings(on, { ...on, soundEnabled: false }, [], NOW);
+    assert.deepEqual(harness.cancelled, []);
+    await applyMobileNotificationSettings(on, { ...on, defaultOffsets: [30] }, [futureTask("task-a", 10)], NOW);
+    assert.deepEqual(harness.cancelled, [2]);
+    assert.equal(harness.sent.length, 2);
+});
+
+test("浏览器保存系统通知设置不影响平台通知或页面内提醒文件", async () => {
+    // Regression: browser settings must not invoke the native notification API.
+    const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    for (const frontend of ["browser-desktop", "browser-mobile"] as const) {
+        destroyMobileNotificationStore();
+        const harness = createHarness(() => frontend);
+        await initMobileNotificationStore(harness.plugin);
+        await applyMobileNotificationSettings(
+            DEFAULT_SETTINGS.reminderSettings,
+            get(taskStore).settings.reminderSettings,
+            [futureTask("browser-task", 10)],
+            NOW,
+        );
+        assert.deepEqual(harness.sent, []);
+        assert.deepEqual(harness.cancelled, []);
+        assert.deepEqual(harness.savedPaths, []);
+    }
+});
+
+test("设置开关与调度共享移动和桌面 App 能力边界", () => {
+    for (const frontend of ["mobile", "desktop", "desktop-window"]) {
+        assert.equal(supportsSystemNotifications(frontend), true);
+    }
+    for (const frontend of ["browser-mobile", "browser-desktop", "unknown"]) {
+        assert.equal(supportsSystemNotifications(frontend), false);
+    }
+});
+
+test("初始化加载尚未完成时销毁，不得在返回后重新启用调度", async () => {
+    // Regression: disposing the runtime while storage loads must not revive the notification store.
+    const harness = createHarness();
+    let resolveStorage!: (value: unknown) => void;
+    const loading = new Promise<unknown>((resolve) => {
+        resolveStorage = resolve;
+    });
+    const plugin = { ...(harness.plugin as FakePlugin), loadData: () => loading };
+    const initializing = initMobileNotificationStore(plugin as never);
+    await Promise.resolve();
+    destroyMobileNotificationStore();
+    resolveStorage({});
+    await initializing;
+    await scheduleMobileNotifications(futureTask("late-task", 10), NOW);
+    assert.deepEqual(harness.sent, []);
+    assert.deepEqual(harness.savedPaths, []);
 });

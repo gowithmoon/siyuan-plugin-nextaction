@@ -6,6 +6,7 @@ import {
     REMINDER_MOBILE_PLAN_HORIZON_MS,
 } from "../../shared/constants";
 import type { TaskCacheEntry } from "../../shared/types";
+import type { ReminderSettings } from "../../shared/settings";
 import { Mutex } from "../../shared/mutex";
 import { taskStore } from "./task-store";
 import {
@@ -45,6 +46,7 @@ let pluginRef: Plugin | null = null;
 let storage: MobileNotificationStorage = {};
 let currentPlanSnapshot: Map<string, readonly number[]> = new Map();
 let initialized = false;
+let lifecycleGeneration = 0;
 let runtimeOverride: MobileNotificationRuntime | null = null;
 let runtimePromise: Promise<MobileNotificationRuntime> | null = null;
 const storageMutex = new Mutex();
@@ -67,8 +69,10 @@ async function getPlatformRuntime(): Promise<MobileNotificationRuntime> {
 }
 
 export function shouldScheduleSystemNotification(runtime: MobileNotificationRuntime | null = runtimeOverride): boolean {
-    if (!runtime) return false;
-    const frontend = runtime.getFrontend();
+    return !!runtime && supportsSystemNotifications(runtime.getFrontend());
+}
+
+export function supportsSystemNotifications(frontend: string): boolean {
     return frontend === "mobile" || frontend === "desktop" || frontend === "desktop-window";
 }
 
@@ -240,18 +244,25 @@ async function cancelCurrentDeviceUnlocked(): Promise<void> {
 }
 
 export async function initMobileNotificationStore(plugin: Plugin): Promise<void> {
+    const generation = ++lifecycleGeneration;
     await withStorageLock(async () => {
+        if (generation !== lifecycleGeneration) return;
         pluginRef = plugin;
-        storage = await loadStorageUnlocked();
+        const loaded = await loadStorageUnlocked();
+        if (generation !== lifecycleGeneration) return;
+        storage = loaded;
         const runtime = await getPlatformRuntime().catch(() => null);
+        if (generation !== lifecycleGeneration) return;
         if (runtime && shouldScheduleSystemNotification(runtime)) {
             await cancelCurrentDeviceUnlocked();
         }
+        if (generation !== lifecycleGeneration) return;
         initialized = true;
     });
 }
 
 export function destroyMobileNotificationStore(): void {
+    lifecycleGeneration++;
     pluginRef = null;
     storage = {};
     currentPlanSnapshot = new Map();
@@ -342,4 +353,23 @@ export async function cancelAllMobileNotifications(): Promise<void> {
     await withStorageLock(async () => {
         await cancelCurrentDeviceUnlocked();
     });
+}
+
+/** Apply notification changes only after settings persistence and task refresh succeed. */
+export async function applyMobileNotificationSettings(
+    previous: ReminderSettings,
+    next: ReminderSettings,
+    tasks: readonly TaskCacheEntry[],
+    nowMs = Date.now(),
+): Promise<void> {
+    if (previous.systemNotificationEnabled && !next.systemNotificationEnabled) {
+        await cancelAllMobileNotifications();
+    } else if (
+        next.systemNotificationEnabled &&
+        (!previous.systemNotificationEnabled ||
+            previous.defaultOffsets.length !== next.defaultOffsets.length ||
+            previous.defaultOffsets.some((offset, index) => offset !== next.defaultOffsets[index]))
+    ) {
+        await rebuildAllMobileNotifications(tasks, nowMs);
+    }
 }

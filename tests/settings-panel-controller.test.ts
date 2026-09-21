@@ -116,3 +116,71 @@ test("恢复和维护动作共享确认状态但保持不同语义", async () =>
     assert.equal(await running, 1);
     assert.equal(model.snapshot.maintenanceBusy.has("cache"), false);
 });
+
+test("系统通知草稿默认关闭，加载和重置只在保存后生效", async () => {
+    const model = controller();
+    assert.equal(model.load({}).reminderSettings.systemNotificationEnabled, false);
+    const enabled = {
+        ...DEFAULT_SETTINGS,
+        reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+    };
+    model.load(enabled);
+    model.edit({ ...enabled, reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings } });
+    assert.equal(model.snapshot.saved.reminderSettings.systemNotificationEnabled, true);
+    assert.equal(model.snapshot.draft.reminderSettings.systemNotificationEnabled, false);
+    assert.equal(await model.requestClose(), "confirm-discard");
+    model.cancelClose();
+    const saved = await model.save(async (settings) => settings);
+    assert.equal(saved?.reminderSettings.systemNotificationEnabled, false);
+});
+
+test("刷新失败保留上次应用的设置，重试成功后才执行通知副作用", async () => {
+    // Regression: a failed refresh must not consume the notification toggle transition.
+    const model = controller();
+    model.load(DEFAULT_SETTINGS);
+    model.edit({
+        ...DEFAULT_SETTINGS,
+        reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+    });
+    await model.save(async (settings) => settings);
+    const transitions: boolean[][] = [];
+    const apply = async (previous: PluginSettings, next: PluginSettings) => {
+        transitions.push([
+            previous.reminderSettings.systemNotificationEnabled,
+            next.reminderSettings.systemNotificationEnabled,
+        ]);
+    };
+    await assert.rejects(
+        model.refreshAfterSave(async () => {
+            throw new Error("refresh failed");
+        }, apply),
+        /refresh failed/,
+    );
+    assert.deepEqual(transitions, []);
+    await model.refreshAfterSave(async () => {}, apply);
+    assert.deepEqual(transitions, [[false, true]]);
+});
+
+test("设置已保存但刷新失败时保留可重试状态，成功后清除", async () => {
+    // Regression: a clean saved draft must still allow retrying a failed notification refresh.
+    const model = controller();
+    model.load(DEFAULT_SETTINGS);
+    await model.save(async (settings) => settings);
+    assert.equal(model.snapshot.dirty, false);
+    assert.equal(model.snapshot.postSavePending, true);
+    await assert.rejects(
+        model.refreshAfterSave(
+            async () => {
+                throw new Error("offline");
+            },
+            async () => {},
+        ),
+    );
+    model.reportPostSaveError("refresh failed");
+    assert.equal(model.snapshot.postSavePending, true);
+    await model.refreshAfterSave(
+        async () => {},
+        async () => {},
+    );
+    assert.equal(model.snapshot.postSavePending, false);
+});

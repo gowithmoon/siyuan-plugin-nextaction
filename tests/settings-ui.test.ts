@@ -34,9 +34,9 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(controller, /dirty:\s*!settingsEqual\(next, this\.state\.saved\)/);
     assert.match(panel, /settingsUnsavedDesc/);
     assert.match(panel, /onkeydowncapture=\{handleWindowKeydown\}/);
-    assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
+    assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| \(!isDirty && !postSavePending\)\}/);
     assert.match(panel, /const result = await controller\.save/);
-    assert.match(panel, /applySettings\(result\);[\s\S]*await onSave\(result\)/);
+    assert.match(panel, /applySettings\(result\);[\s\S]*await controller\.refreshAfterSave\(onSave/);
     assert.match(panel, /settingsSavedRefreshFailed/);
     assert.match(controller, /saved: authoritative[\s\S]*dirty: false/);
     assert.match(panel, /i18n\?\.save \|\| "Save"/);
@@ -136,4 +136,39 @@ test("设置界面基础结构统一使用 Na 公共组件", () => {
     for (const source of [naSection, naSettingRow, naAccordion]) {
         assert.match(source, /var\(--b3-/);
     }
+});
+
+test("系统通知开关在音效之后可见，浏览器和关闭提醒时禁用", () => {
+    assert.ok(
+        general.indexOf('id="setting-reminder-system-notification"') >
+            general.indexOf('id="setting-reminder-sound-enabled"'),
+    );
+    assert.match(general, /systemNotificationSupported = supportsSystemNotifications\(getFrontend\(\)\)/);
+    assert.match(
+        general,
+        /bind:checked=\{reminderSystemNotificationEnabled\}\s+disabled=\{!reminderEnabled \|\| !systemNotificationSupported\}/,
+    );
+    assert.match(general, /i18n\.reminderSystemNotificationUnsupported/);
+    assert.match(panel, /bind:reminderSystemNotificationEnabled/);
+    assert.match(panel, /systemNotificationEnabled: reminderSystemNotificationEnabled/);
+    assert.match(panel, /reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS\.systemNotificationEnabled/);
+    assert.match(panel, /if \(!result\) return;[\s\S]*controller\.refreshAfterSave/);
+    assert.match(panel, /applyMobileNotificationSettings\([\s\S]*get\(taskStore\)\.allTasks/);
+});
+
+test("生产设置入口依赖的通知 store 在任务加载成功后初始化并随 runtime 销毁", () => {
+    const runtime = read("src/frontend/controllers/frontend-runtime.ts");
+    assert.match(
+        runtime,
+        /await taskStore\.loadTasks\(\);\s+const state = get\(taskStore\);\s+if \(this\.disposed \|\| state\.loading \|\| state\.error\) return;/,
+    );
+    assert.match(
+        runtime,
+        /if \(!this\.mobileNotificationInitialization\) \{[\s\S]*this\.initializeMobileNotifications\(\)/,
+    );
+    assert.match(
+        runtime,
+        /await initMobileNotificationStore\(this\.plugin\);[\s\S]*await rebuildAllMobileNotifications\(get\(taskStore\)\.allTasks\)/,
+    );
+    assert.match(runtime, /destroyReminderStore\(\);\s+destroyMobileNotificationStore\(\)/);
 });

@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { getFrontend } from "siyuan";
+    import { supportsSystemNotifications } from "../../stores/mobile-notification-store";
     import type { MyDayViewMode } from "../../../shared/settings";
     import type { CreateTaskDefaultTarget } from "../../../shared/task-creation";
     import type { ReminderSoundId } from "../../../shared/constants";
@@ -37,6 +39,7 @@
         reminderDueSound: ReminderSoundId;
         reminderReviewSound: ReminderSoundId;
         reminderSoundEnabled: boolean;
+        reminderSystemNotificationEnabled: boolean;
         newOffsetValue: number;
         newOffsetUnit: "minutes" | "hours" | "days";
         soundIds: readonly ReminderSoundId[];
@@ -71,6 +74,7 @@
         reminderDueSound = $bindable(),
         reminderReviewSound = $bindable(),
         reminderSoundEnabled = $bindable(),
+        reminderSystemNotificationEnabled = $bindable(),
         newOffsetValue = $bindable(),
         newOffsetUnit = $bindable(),
         soundIds,
@@ -86,6 +90,7 @@
         onResetMyDay,
         onResetReminder,
     }: Props = $props();
+    const systemNotificationSupported = supportsSystemNotifications(getFrontend());
 </script>
 
 <div class="na-page-stack na-settings-general">
@@ -367,6 +372,22 @@
                 type="checkbox"
                 bind:checked={reminderSoundEnabled}
                 disabled={!reminderEnabled}
+            />
+        </NaSettingRow>
+        <NaSettingRow
+            disabled={!reminderEnabled || !systemNotificationSupported}
+            forId="setting-reminder-system-notification"
+            title={i18n.reminderSettingSystemNotification}
+            description={systemNotificationSupported
+                ? i18n.reminderSettingSystemNotificationDesc
+                : i18n.reminderSystemNotificationUnsupported}
+        >
+            <input
+                id="setting-reminder-system-notification"
+                class="b3-switch"
+                type="checkbox"
+                bind:checked={reminderSystemNotificationEnabled}
+                disabled={!reminderEnabled || !systemNotificationSupported}
             />
         </NaSettingRow>
     </NaSection>

@@ -1,3 +1,4 @@
+import { get } from "svelte/store";
 import { Dialog } from "siyuan";
 import type { PluginSettings } from "../../shared/settings";
 import type { I18nStrings } from "../../shared/i18n";
@@ -55,10 +56,12 @@ export class SettingsDialogController {
                     taskStore.applySettingsUpdate(settings);
                     try {
                         await this.bridge.recalcAllOrders();
-                        notifyInfo(this.i18n.settingsSaved || "Settings saved");
                     } finally {
-                        void taskStore.loadTasks();
+                        await taskStore.loadTasks();
                     }
+                    const refreshError = get(taskStore).error;
+                    if (refreshError) throw new Error(refreshError);
+                    notifyInfo(this.i18n.settingsSaved || "Settings saved");
                 },
                 onClose: () => dialog.destroy(),
             },

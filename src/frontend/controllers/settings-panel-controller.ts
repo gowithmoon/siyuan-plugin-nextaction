@@ -19,6 +19,7 @@ export interface SettingsPanelControllerSnapshot {
     categoryDetailOpen: boolean;
     loadState: SettingsLoadState;
     saveState: SettingsSaveState;
+    postSavePending: boolean;
     error: string;
     pendingAction: SettingsAction | null;
     maintenanceBusy: ReadonlySet<string>;
@@ -42,6 +43,7 @@ export class SettingsPanelController {
     private state: SettingsPanelControllerSnapshot;
     private activeSave: Promise<PluginSettings | null> | null = null;
     private discarded = false;
+    private appliedSettings = cloneSettings(DEFAULT_SETTINGS);
 
     constructor(private readonly options: SettingsPanelControllerOptions) {
         const defaults = cloneSettings(DEFAULT_SETTINGS);
@@ -53,6 +55,7 @@ export class SettingsPanelController {
             categoryDetailOpen: false,
             loadState: "idle",
             saveState: "idle",
+            postSavePending: false,
             error: "",
             pendingAction: null,
             maintenanceBusy: new Set(),
@@ -70,6 +73,7 @@ export class SettingsPanelController {
 
     load(raw: Partial<PluginSettings> | null | undefined): PluginSettings {
         const settings = mergeSettings(DEFAULT_SETTINGS, raw || {});
+        this.appliedSettings = cloneSettings(settings);
         this.state = {
             ...this.state,
             saved: cloneSettings(settings),
@@ -77,6 +81,7 @@ export class SettingsPanelController {
             dirty: false,
             loadState: "loaded",
             saveState: "idle",
+            postSavePending: false,
             error: "",
             closeRequested: false,
         };
@@ -127,6 +132,7 @@ export class SettingsPanelController {
                     draft: cloneSettings(authoritative),
                     dirty: false,
                     saveState: "saved",
+                    postSavePending: true,
                     error: "",
                 };
                 return authoritative;
@@ -139,6 +145,17 @@ export class SettingsPanelController {
         const result = await savePromise;
         if (this.activeSave === savePromise) this.activeSave = null;
         return result;
+    }
+
+    async refreshAfterSave(
+        refresh: (settings: PluginSettings) => void | Promise<void>,
+        apply: (previous: PluginSettings, next: PluginSettings) => Promise<void>,
+    ): Promise<void> {
+        const saved = cloneSettings(this.state.saved);
+        await refresh(saved);
+        await apply(this.appliedSettings, saved);
+        this.appliedSettings = saved;
+        this.patch({ postSavePending: false });
     }
 
     reportPostSaveError(message: string): void {
