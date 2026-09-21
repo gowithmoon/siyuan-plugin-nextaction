@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { writeTaskDragDataTransfer } from "../../utils/drag-payload";
     import { useWorkspace } from "../../workspace-context";
     import NaIconButton from "../../ui/NaIconButton.svelte";
     const workspace = useWorkspace();
@@ -75,10 +76,11 @@
         }
     }
 
-    function handleDragStart(e: DragEvent, blockId: string) {
+    function handleDragStart(e: DragEvent, task: TaskCacheEntry) {
         if (!e.dataTransfer) return;
-        e.dataTransfer.setData(MY_DAY_DRAG_TYPE, blockId);
-        e.dataTransfer.effectAllowed = "move";
+        writeTaskDragDataTransfer(e.dataTransfer, task, {
+            extraMimes: { [MY_DAY_DRAG_TYPE]: task.blockId },
+        });
     }
 
     function handleDragOver(e: DragEvent) {
@@ -200,7 +202,7 @@
                         draggable={!workspace?.touch}
                         role="button"
                         tabindex="0"
-                        ondragstart={(e) => handleDragStart(e, entry.blockId)}
+                        ondragstart={(e) => handleDragStart(e, task)}
                         onclick={(e) => handleClick(e, task, entry)}
                         onkeydown={(event) => handleCardKeydown(event, task, entry)}
                         oncontextmenu={(event) => handleContextMenu(task, event)}

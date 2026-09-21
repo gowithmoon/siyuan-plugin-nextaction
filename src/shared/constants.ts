@@ -117,6 +117,7 @@ export const MAX_SCHEDULE_DURATION = 720;
 export const PIXELS_PER_MINUTE = 1.2;
 export const UNSCHEDULED_PANEL_WIDTH = 220;
 export const RESPONSIVE_BREAKPOINT = 500;
+export const SIYUAN_DROP_BLOCK_REF = "application/siyuan-block-ref";
 export const MY_DAY_DRAG_TYPE = "application/x-na-my-day-task";
 export const RESIZE_HANDLE_HEIGHT = 6;
 export const CLICK_THRESHOLD_PX = 5;

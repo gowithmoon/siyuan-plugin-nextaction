@@ -53,6 +53,7 @@
     <NaTaskList>
         {#each filteredTasks as task (task.blockId)}
             <TaskCard
+                blockRefDragEnabled={true}
                 {task}
                 selected={task.blockId === selectedTaskId}
                 onSelect={onSelectTask}
@@ -71,7 +72,14 @@
                 variant="plain"
             >
                 {#each $taskStore.projectReminders as project (project.blockId)}
-                    <TaskCard task={project} {onEdit} {onStatusClick} {onContextMenu} {i18n} />
+                    <TaskCard
+                        blockRefDragEnabled={true}
+                        task={project}
+                        {onEdit}
+                        {onStatusClick}
+                        {onContextMenu}
+                        {i18n}
+                    />
                 {/each}
             </NaAccordion>
         {/if}

@@ -55,7 +55,7 @@
         >{/snippet}
     <NaTaskList density="compact">
         {#each filteredTasks as task (task.blockId)}
-            <TaskCard {task} {onEdit} {onStatusClick} {onContextMenu} {i18n} />
+            <TaskCard blockRefDragEnabled={true} {task} {onEdit} {onStatusClick} {onContextMenu} {i18n} />
         {/each}
     </NaTaskList>
 </NaViewShell>

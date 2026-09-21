@@ -13,6 +13,7 @@
     import { formatCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
     import NaIconButton from "../ui/NaIconButton.svelte";
     import { isProjectTask } from "../../shared/project-domain";
+    import { writeTaskDragDataTransfer } from "../utils/drag-payload";
 
     interface Props {
         task: TaskCacheEntry;
@@ -30,6 +31,8 @@
         isRoot?: boolean;
         completedOverride?: boolean | undefined;
         managedFocus?: boolean;
+        blockRefDragEnabled?: boolean;
+        onDragStartTask?: ((task: TaskCacheEntry, event: DragEvent) => void) | undefined;
     }
 
     let {
@@ -48,7 +51,11 @@
         isRoot = true,
         completedOverride = undefined,
         managedFocus = false,
+        blockRefDragEnabled = false,
+        onDragStartTask = undefined,
     }: Props = $props();
+
+    let isDragging = $state(false);
 
     let isInbox = $derived(task.status === "inbox");
     let isBlocked = $derived(task.blocked);
@@ -157,10 +164,32 @@
         event.stopPropagation();
         onActivate?.(task);
     }
+
+    function handleDragStart(event: DragEvent): void {
+        if (workspace?.touch) {
+            event.preventDefault();
+            return;
+        }
+        // 普通浏览器预览没有 window.siyuan；载荷缺失时保留原生拖拽反馈，
+        // 思源运行时则由 writeTaskDragDataTransfer 写入私有块引用 MIME。
+        if (event.dataTransfer) writeTaskDragDataTransfer(event.dataTransfer, task);
+        onDragStartTask?.(task, event);
+        isDragging = !event.defaultPrevented;
+    }
+
+    function handleDragEnd(): void {
+        // 延迟清除，防止拖拽结束后立即触发卡片点击。
+        setTimeout(() => {
+            isDragging = false;
+        }, 0);
+    }
 </script>
 
 <div
     class="na-task-card"
+    draggable={blockRefDragEnabled && !workspace?.touch}
+    ondragstart={blockRefDragEnabled ? handleDragStart : undefined}
+    ondragend={blockRefDragEnabled ? handleDragEnd : undefined}
     class:na-task-card--root={isRoot}
     class:na-task-card--child={!isRoot}
     class:na-task-card--project={isProject}
@@ -173,7 +202,14 @@
     style="--na-task-card-accent: {cardAccentColor}"
     role="button"
     tabindex={managedFocus ? -1 : 0}
+    onclickcapture={(event) => {
+        if (isDragging) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }}
     onclick={() => {
+        if (isDragging) return;
         if (onSelect) onSelect(task);
     }}
     onkeydown={(event) => {

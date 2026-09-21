@@ -1,5 +1,8 @@
 <script lang="ts">
+    import { writeTaskDragDataTransfer } from "../utils/drag-payload";
     import { onMount } from "svelte";
+    import { useWorkspace } from "../workspace-context";
+    const workspace = useWorkspace();
     import { taskStore } from "../stores/task-store";
     import { KernelBridge } from "../kernel-bridge";
     import { DEFAULT_MY_DAY_RESET_HOUR, DEFAULT_MY_DAY_DURATION, MY_DAY_DRAG_TYPE } from "../../shared/constants";
@@ -99,10 +102,11 @@
         viewMode = value as ViewMode;
     }
 
-    function handleDragStart(e: DragEvent, blockId: string) {
+    function handleDragStart(e: DragEvent, task: TaskCacheEntry) {
         if (!e.dataTransfer) return;
-        e.dataTransfer.setData(MY_DAY_DRAG_TYPE, blockId);
-        e.dataTransfer.effectAllowed = "move";
+        writeTaskDragDataTransfer(e.dataTransfer, task, {
+            extraMimes: { [MY_DAY_DRAG_TYPE]: task.blockId },
+        });
     }
 
     function handleUnscheduledClick(event: MouseEvent, task: TaskCacheEntry): void {
@@ -186,10 +190,10 @@
                                         "low"}
                                     class:na-dock-myday__unscheduled-item--none={normalizePriority(task.priority) ===
                                         "none"}
-                                    draggable="true"
+                                    draggable={!workspace?.touch}
                                     role="button"
                                     tabindex="0"
-                                    ondragstart={(e) => handleDragStart(e, entry.blockId)}
+                                    ondragstart={(e) => handleDragStart(e, task)}
                                     onclick={(event) => handleUnscheduledClick(event, task)}
                                     onkeydown={(event) => {
                                         if (event.key === "Enter" || event.key === " ") onEdit(task);
@@ -230,6 +234,7 @@
             <NaTaskList density="compact">
                 {#each myDayTasks as task (task.blockId)}
                     <TaskCard
+                        blockRefDragEnabled={true}
                         {task}
                         completedOverride={isMyDayEntryDone(myDayEntryMap.get(task.blockId), task.status)}
                         {onEdit}

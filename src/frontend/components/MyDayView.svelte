@@ -217,6 +217,7 @@
             <NaTaskList>
                 {#each filteredTasks as task (task.blockId)}
                     <TaskCard
+                        blockRefDragEnabled={true}
                         {task}
                         completedOverride={isMyDayEntryDone(myDayEntryMap.get(task.blockId), task.status)}
                         selected={task.blockId === selectedTaskId}
@@ -235,6 +236,7 @@
                             {#each scheduledTasks as task (task.blockId)}
                                 <div class="na-myday-schedule-row na-myday-scheduled__row">
                                     <TaskCard
+                                        blockRefDragEnabled={true}
                                         {task}
                                         completedOverride={isMyDayEntryDone(
                                             myDayEntryMap.get(task.blockId),
