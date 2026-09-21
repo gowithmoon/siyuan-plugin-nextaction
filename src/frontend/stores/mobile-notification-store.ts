@@ -187,7 +187,8 @@ function buildNotificationBody(trigger: MobileNotificationTrigger): string {
     if (trigger.kind === "review") {
         return i18n.reminderSystemNotificationBodyReview || "";
     }
-    return (i18n.reminderSystemNotificationBody || "").replace("{time}", formatLocalTime(trigger.triggerTimeMs));
+    const dueTimeMs = trigger.triggerTimeMs + trigger.minutesBefore * 60_000;
+    return (i18n.reminderSystemNotificationBody || "").replace("{time}", formatLocalTime(dueTimeMs));
 }
 
 async function sendNotificationForTrigger(

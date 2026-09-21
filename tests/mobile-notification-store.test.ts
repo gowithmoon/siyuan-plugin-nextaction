@@ -1,5 +1,6 @@
 import test, { afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { get } from "svelte/store";
 import { DEFAULT_SETTINGS, mergeSettings } from "../src/shared/settings.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
@@ -103,6 +104,39 @@ test("支持的平台调度通知并按设备持久化 ID", async () => {
     assert.equal(harness.sent[0].options.channel, "NextAction Reminders");
     assert.equal(harness.sent[0].options.body, "Due at 10:00");
     assert.deepEqual(harness.readStorage(), { "device-a": { "task-a": [1] } });
+});
+
+// Regression: 提前提醒正文曾把触发时刻写成到期时刻，中英文均应展示真实截止时间。
+test("双语正文区分提前提醒的截止时间、绝对提醒和回顾", async (context) => {
+    context.mock.timers.enable({ apis: ["Date"], now: NOW });
+    for (const [locale, expected] of [
+        ["en", ["Due at 10:00", "Due at 23:59", "Due at 11:00", "Review today"]],
+        ["zh-CN", ["10:00 到期", "23:59 到期", "11:00 到期", "今日回顾"]],
+    ] as const) {
+        destroyMobileNotificationStore();
+        const h = createHarness(() => "desktop");
+        const plugin: FakePlugin = h.plugin;
+        plugin.i18n = JSON.parse(readFileSync(new URL(`../src/i18n/${locale}.json`, import.meta.url), "utf8"));
+        await initMobileNotificationStore(h.plugin);
+        await rebuildAllMobileNotifications(
+            [
+                taskFactory("due", { due: "2030-01-01T10:00", reminder: '[{"type":"relative","minutes":60}]' }),
+                taskFactory("date", { due: "2030-01-01", reminder: '[{"type":"relative","minutes":60}]' }),
+                futureTask("absolute", 11),
+                taskFactory("review", { reviewDate: "2030-01-01" }),
+            ],
+            NOW,
+        );
+        assert.deepEqual(
+            h.sent.map(({ options }) => options.body),
+            expected,
+            locale,
+        );
+        assert.deepEqual(
+            h.sent.map(({ options }) => options.delayInSeconds),
+            [3600, 53999, 10800, 3600],
+        );
+    }
 });
 
 test("浏览器端和平台 -1 都静默跳过原生通知", async () => {
