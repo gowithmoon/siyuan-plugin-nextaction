@@ -51,6 +51,7 @@ export interface ReminderSettings {
     dueSound: ReminderSoundId;
     reviewSound: ReminderSoundId;
     soundEnabled: boolean;
+    systemNotificationEnabled: boolean;
 }
 
 export interface AiSettings {
@@ -165,6 +166,7 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
     dueSound: "chime",
     reviewSound: "soft",
     soundEnabled: true,
+    systemNotificationEnabled: false,
 };
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -320,6 +322,9 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
         if (rs.soundEnabled !== undefined && typeof rs.soundEnabled !== "boolean") {
             return "reminderSettings.soundEnabled must be boolean";
+        }
+        if (rs.systemNotificationEnabled !== undefined && typeof rs.systemNotificationEnabled !== "boolean") {
+            return "reminderSettings.systemNotificationEnabled must be boolean";
         }
     }
     const mcpError = validateMcpSettings(settings.mcpSettings);

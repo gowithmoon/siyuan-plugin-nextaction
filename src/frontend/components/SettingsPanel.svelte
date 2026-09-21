@@ -87,6 +87,7 @@
     let reminderDueSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.dueSound);
     let reminderReviewSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.reviewSound);
     let reminderSoundEnabled = $state(DEFAULT_REMINDER_SETTINGS.soundEnabled);
+    let reminderSystemNotificationEnabled = $state(DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled);
     let newOffsetValue = $state(60);
     let newOffsetUnit: "minutes" | "hours" | "days" = $state("minutes");
 
@@ -151,6 +152,8 @@
         reminderDueSound = reminder.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
         reminderReviewSound = reminder.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+        reminderSystemNotificationEnabled =
+            reminder.systemNotificationEnabled ?? DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
         const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
         mcpEnabled = mcp.enabled;
         mcpAllowWrite = mcp.allowWrite;
@@ -304,6 +307,7 @@
                 dueSound: reminderDueSound,
                 reviewSound: reminderReviewSound,
                 soundEnabled: reminderSoundEnabled,
+                systemNotificationEnabled: reminderSystemNotificationEnabled,
             },
             mcpSettings: {
                 enabled: mcpEnabled,
@@ -472,6 +476,7 @@
         reminderDueSound = DEFAULT_REMINDER_SETTINGS.dueSound;
         reminderReviewSound = DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
+        reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
     }
 
     function handleResetReminder() {
@@ -715,6 +720,7 @@
         reminderDueSound,
         reminderReviewSound,
         reminderSoundEnabled,
+        reminderSystemNotificationEnabled,
         mcpEnabled,
         mcpAllowWrite,
         taskCreationDefaultCreateTarget,

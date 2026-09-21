@@ -77,6 +77,11 @@ export const REMINDER_MAX_VISIBLE = 5;
 // dismissed 记录 TTL（毫秒，7天）
 export const REMINDER_DISMISSED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+export const REMINDER_MOBILE_PLAN_HORIZON_DAYS = 7;
+export const REMINDER_MOBILE_PLAN_HORIZON_MS = REMINDER_MOBILE_PLAN_HORIZON_DAYS * 24 * 60 * 60 * 1000;
+export const REMINDER_MOBILE_DATA_PATH = "mobile-notifications.json";
+export const REMINDER_MOBILE_CHANNEL = "NextAction Reminders";
+
 // 可用音效 ID 列表
 export const REMINDER_SOUND_IDS = ["chime", "soft", "bell", "ping", "gentle"] as const;
 export type ReminderSoundId = (typeof REMINDER_SOUND_IDS)[number];

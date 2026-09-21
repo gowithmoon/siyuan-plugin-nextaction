@@ -553,6 +553,8 @@
     "reminderSettingReviewSound": "Review Reminder Sound",
     "reminderSettingSoundEnabled": "Sound",
     "reminderSettingSoundEnabledDesc": "Play sound on reminder",
+    "reminderSystemNotificationBody": "Due at {time}",
+    "reminderSystemNotificationBodyReview": "Review today",
     "reminderSoundChime": "Chime",
     "reminderSoundSoft": "Soft",
     "reminderSoundBell": "Bell",

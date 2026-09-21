@@ -553,6 +553,8 @@
     "reminderSettingReviewSound": "回顾提醒音效",
     "reminderSettingSoundEnabled": "音效",
     "reminderSettingSoundEnabledDesc": "提醒时播放音效",
+    "reminderSystemNotificationBody": "{time} 到期",
+    "reminderSystemNotificationBodyReview": "今日回顾",
     "reminderSoundChime": "清脆铃声",
     "reminderSoundSoft": "柔和铃声",
     "reminderSoundBell": "经典铃声",
