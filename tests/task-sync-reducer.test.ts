@@ -395,3 +395,33 @@ test("内核重连清空旧 stream 并从新快照继续连续增量", async () 
     assert.equal(snapshotCalls, 2);
     store.disposeSync();
 });
+
+// Regression: 通知消费者必须在 delta 提交后拿到旧任务，重复 revision 不得重复发送。
+test("任务变更观察器只接收已提交 delta，并保留旧任务快照", async () => {
+    const original = taskFactory(TASK_A, { due: "2030-01-01T10:00" });
+    const store = createTaskStore();
+    store.setBridge({ getTaskSnapshotV2: async () => snapshot("stream-a", 0, [original]) } as KernelBridge);
+    await store.loadTasks();
+    const received: string[] = [];
+    const unsubscribe = store.observeCommittedChanges((changes, previous) => {
+        assert.equal(store.getTask(TASK_A)?.due, "2030-01-01T11:00");
+        assert.equal(previous.get(TASK_A)?.due, "2030-01-01T10:00");
+        received.push(...changes.upserts.map((task) => task.blockId), ...changes.deletedBlockIds);
+    });
+    const delta = {
+        schema: 2,
+        type: "delta",
+        streamId: "stream-a",
+        fromRevision: 0,
+        revision: 1,
+        upserts: [{ ...original, due: "2030-01-01T11:00" }],
+        deletedBlockIds: [TASK_B],
+    };
+    store.applyChangeSetV2(delta);
+    store.applyChangeSetV2(delta);
+    assert.deepEqual(received, [TASK_A, TASK_B]);
+    unsubscribe();
+    store.applyUpdate(original);
+    assert.deepEqual(received, [TASK_A, TASK_B]);
+    store.disposeSync();
+});

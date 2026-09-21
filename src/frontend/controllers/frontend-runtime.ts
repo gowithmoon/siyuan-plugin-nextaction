@@ -1,15 +1,10 @@
 import type { Plugin } from "siyuan";
-import { get } from "svelte/store";
 import NotificationHost from "../components/NotificationHost.svelte";
 import { initAiFeatureService } from "../ai/ai-feature-service";
 import { KernelBridge } from "../kernel-bridge";
 import { notifyInfo } from "../notify";
 import { destroyReminderStore, initReminderStore } from "../stores/reminder-store";
-import {
-    destroyMobileNotificationStore,
-    initMobileNotificationStore,
-    rebuildAllMobileNotifications,
-} from "../stores/mobile-notification-store";
+import { MobileNotificationLifecycle } from "./mobile-notification-lifecycle";
 import { taskStore } from "../stores/task-store";
 import { asI18nStrings } from "../../shared/i18n";
 import type { MyDayState } from "../../shared/types";
@@ -22,7 +17,8 @@ export class FrontendRuntime {
     private notificationHost?: SvelteComponentMount<object>;
     private calibrationTimer: ReturnType<typeof setInterval> | null = null;
     private disposed = false;
-    private mobileNotificationInitialization: Promise<void> | null = null;
+    private generation = 0;
+    private readonly mobileNotifications: MobileNotificationLifecycle;
     private readonly tasksChangedV2Handler = (...params: unknown[]) => {
         taskStore.applyChangeSetV2(params[0]);
     };
@@ -31,7 +27,7 @@ export class FrontendRuntime {
     };
     private readonly kernelStateHandler = async (event: unknown) => {
         const detail = (event as { detail?: { code?: number } })?.detail;
-        if (detail?.code !== 2) return;
+        if (this.disposed || detail?.code !== 2) return;
         notifyInfo(`${this.plugin.i18n.pluginName} ready`);
         taskStore.resetSync();
         await this.loadTaskStoreState();
@@ -40,7 +36,9 @@ export class FrontendRuntime {
     constructor(
         private readonly plugin: Plugin,
         private readonly getCurrentDocumentId: () => string,
-    ) {}
+    ) {
+        this.mobileNotifications = new MobileNotificationLifecycle(plugin);
+    }
 
     start(): KernelBridge {
         if (this.bridge) return this.bridge;
@@ -49,6 +47,7 @@ export class FrontendRuntime {
         this.bridge = bridge;
         taskStore.setBridge(bridge);
         taskStore.resetSync();
+        this.mobileNotifications.start();
         initAiFeatureService({
             bridge,
             i18n: asI18nStrings(this.plugin.i18n),
@@ -72,6 +71,7 @@ export class FrontendRuntime {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
+        this.generation++;
         if (this.bridge) {
             this.plugin.kernel.rpc.unbind("tasksChangedV2", this.tasksChangedV2Handler);
             this.plugin.kernel.rpc.unbind("myDayChanged", this.myDayChangedHandler);
@@ -81,31 +81,21 @@ export class FrontendRuntime {
         taskStore.disposeSync();
         this.plugin.eventBus.off("kernel-plugin-state-change", this.kernelStateHandler);
         destroyReminderStore();
-        destroyMobileNotificationStore();
-        this.mobileNotificationInitialization = null;
+        this.mobileNotifications.dispose();
         void this.notificationHost?.dispose();
         this.notificationHost = undefined;
         this.bridge = undefined;
     }
 
     private async loadTaskStoreState(): Promise<void> {
+        const generation = this.generation;
         await taskStore.loadSettings();
+        if (this.disposed || generation !== this.generation) return;
         await taskStore.loadTasks();
-        const state = get(taskStore);
-        if (this.disposed || state.loading || state.error) return;
-        // Settings controls need a ready store; sync-event reconciliation belongs to #119.
-        if (!this.mobileNotificationInitialization) {
-            this.mobileNotificationInitialization = this.initializeMobileNotifications();
-        }
-        await this.mobileNotificationInitialization;
+        if (!this.disposed && generation === this.generation) await this.mobileNotifications.reconcile();
     }
 
-    private async initializeMobileNotifications(): Promise<void> {
-        await initMobileNotificationStore(this.plugin);
-        if (this.disposed) {
-            destroyMobileNotificationStore();
-            return;
-        }
-        await rebuildAllMobileNotifications(get(taskStore).allTasks);
+    handleDataChanged(reason?: string): void {
+        if (!this.disposed) void this.mobileNotifications.handleDataChanged(reason);
     }
 }

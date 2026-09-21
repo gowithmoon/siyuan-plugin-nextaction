@@ -22,7 +22,13 @@ import {
     isTaskChangeSetV2,
     normalizeTaskSnapshotV2,
     reduceTaskChanges,
+    type TaskCollectionChanges,
 } from "./task-sync-reducer";
+
+export type CommittedTaskChangeListener = (
+    changes: TaskCollectionChanges,
+    previous: ReadonlyMap<string, TaskCacheEntry>,
+) => void;
 
 interface TaskState {
     allTasks: TaskCacheEntry[];
@@ -97,6 +103,20 @@ export function createTaskStore() {
     let handshakeInProgress = false;
     let queuedV2Notifications: unknown[] = [];
     let taskCollectionReady = false;
+    let settingsReady = false;
+    let settingsLoadSeq = 0;
+    const changeListeners = new Set<CommittedTaskChangeListener>();
+    const snapshotListeners = new Set<() => void>();
+
+    function notifySnapshotLoaded(): void {
+        for (const listener of snapshotListeners) {
+            try {
+                listener();
+            } catch (error) {
+                console.error("[NextAction] task snapshot observer failed:", error);
+            }
+        }
+    }
 
     function getCurrentState(): TaskState {
         let currentState!: TaskState;
@@ -178,12 +198,24 @@ export function createTaskStore() {
 
     function commitTaskChanges(upserts: TaskCacheEntry[], deletedBlockIds: string[]): void {
         let completedChanged = false;
+        const previous = new Map<string, TaskCacheEntry>();
         update((state) => {
+            const affected = new Set(upserts.map((task) => task.blockId));
+            for (const task of state.allTasks) {
+                if (affected.has(task.blockId)) previous.set(task.blockId, task);
+            }
             const reduction = reduceTaskChanges(state, { upserts, deletedBlockIds });
             completedChanged = reduction.completedChanged;
             return { ...state, ...reduction.collection, loading: false, error: null };
         });
         if (completedChanged) invalidateCompletedPage(true);
+        for (const listener of changeListeners) {
+            try {
+                listener({ upserts, deletedBlockIds }, previous);
+            } catch (error) {
+                console.error("[NextAction] committed task change observer failed:", error);
+            }
+        }
     }
 
     function requestV2Recovery(): void {
@@ -241,6 +273,7 @@ export function createTaskStore() {
                 handshakeInProgress = false;
                 queuedV2Notifications = [];
                 if (getCurrentState().showCompleted) invalidateCompletedPage(true);
+                notifySnapshotLoaded();
                 return;
             }
             if (seq !== loadSeq) return;
@@ -256,6 +289,7 @@ export function createTaskStore() {
             queuedV2Notifications = [];
             for (const notification of queued) applyV2Notification(notification);
             if (getCurrentState().showCompleted) invalidateCompletedPage(true);
+            if (seq === loadSeq) notifySnapshotLoaded();
         } catch (error: unknown) {
             console.error("[NextAction] loadTasks failed:", error);
             if (seq !== loadSeq) return;
@@ -268,6 +302,17 @@ export function createTaskStore() {
 
     return {
         subscribe,
+        observeCommittedChanges(listener: CommittedTaskChangeListener): () => void {
+            changeListeners.add(listener);
+            return () => changeListeners.delete(listener);
+        },
+        observeSnapshots(listener: () => void): () => void {
+            snapshotListeners.add(listener);
+            return () => snapshotListeners.delete(listener);
+        },
+        isReady(): boolean {
+            return settingsReady && taskCollectionReady && !handshakeInProgress && !getCurrentState().error;
+        },
         getTask(blockId: string): TaskCacheEntry | null {
             return getCurrentState().allTasks.find((task) => task.blockId === blockId) || null;
         },
@@ -302,8 +347,12 @@ export function createTaskStore() {
 
         async loadSettings() {
             if (!bridge) return;
+            const seq = ++settingsLoadSeq;
+            settingsReady = false;
             try {
                 const settings = await bridge.getSettings();
+                if (seq !== settingsLoadSeq) return;
+                settingsReady = true;
                 update((s) => ({ ...s, settings }));
             } catch (e: any) {
                 console.error("[NextAction] loadSettings failed:", e);
@@ -411,6 +460,7 @@ export function createTaskStore() {
 
         resetSync() {
             loadSeq++;
+            taskCollectionReady = false;
             handshakeInProgress = false;
             legacySnapshotMode = false;
             syncStreamId = "";
@@ -420,6 +470,8 @@ export function createTaskStore() {
 
         disposeSync() {
             loadSeq++;
+            settingsLoadSeq++;
+            settingsReady = false;
             handshakeInProgress = false;
             queuedV2Notifications = [];
             taskCollectionReady = false;

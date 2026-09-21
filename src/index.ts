@@ -50,6 +50,11 @@ export default class NextActionPlugin extends Plugin {
         this.taskCommands?.registerCommands();
     }
 
+    onDataChanged(reason?: string): void {
+        super.onDataChanged?.();
+        this.runtime?.handleDataChanged(reason);
+    }
+
     onunload() {
         configureDocumentNavigation(undefined);
         this.editorIntegration?.dispose();

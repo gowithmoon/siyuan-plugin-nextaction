@@ -311,3 +311,184 @@ test("初始化加载尚未完成时销毁，不得在返回后重新启用调�
     assert.deepEqual(harness.sent, []);
     assert.deepEqual(harness.savedPaths, []);
 });
+
+// Regression: 批量任务增量必须独立取消、更新和新增，通知异常不能阻断其他任务。
+test("批量 delta 更新到期、标题、完成和删除，并隔离平台异常", async () => {
+    const { onTasksChangedV2 } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const harness = createHarness();
+    await initMobileNotificationStore(harness.plugin);
+    const due = taskFactory("due", { due: "2030-01-01T11:00", reminder: '[{"type":"relative","minutes":60}]' });
+    const original = [
+        due,
+        futureTask("title", 10),
+        futureTask("done", 10),
+        futureTask("deleted", 10),
+        futureTask("same", 10),
+    ];
+    await rebuildAllMobileNotifications(original, NOW);
+    harness.sent.length = 0;
+    await onTasksChangedV2(
+        {
+            upserts: [
+                { ...due, due: "2030-01-01T12:00" },
+                { ...original[1], title: "新标题" },
+                { ...original[2], status: "done" },
+                { ...original[4], priority: "high" },
+                futureTask("new", 11),
+            ],
+            deletedBlockIds: ["deleted", "unknown"],
+        },
+        new Map(original.map((task) => [task.blockId, task])),
+        NOW,
+    );
+    assert.deepEqual(harness.cancelled.sort(), [1, 2, 3, 4]);
+    assert.equal(harness.sent.length, 3);
+    assert.ok(harness.sent.some((item) => item.options.title === "新标题"));
+    assert.deepEqual(Object.keys((harness.readStorage() as Record<string, object>)["device-a"]).sort(), [
+        "due",
+        "new",
+        "same",
+        "title",
+    ]);
+});
+
+// Regression: 卸载期间尚未完成的原生发送不得复活，排队任务不得继续注册。
+test("销毁阻止在途及排队任务写回，并取消迟到的通知 ID", async () => {
+    const harness = createHarness();
+    let resolveSend!: (id: number) => void;
+    let started!: () => void;
+    const sending = new Promise<void>((resolve) => {
+        started = resolve;
+    });
+    let calls = 0;
+    configureMobileNotificationRuntime({
+        getFrontend: () => "mobile",
+        platformUtils: {
+            sendNotification() {
+                calls++;
+                started();
+                return new Promise<number>((resolve) => {
+                    resolveSend = resolve;
+                });
+            },
+            cancelNotification(id) {
+                harness.cancelled.push(id);
+            },
+        },
+    });
+    await initMobileNotificationStore(harness.plugin);
+    const first = scheduleMobileNotifications(futureTask("in-flight", 10), NOW);
+    const queued = scheduleMobileNotifications(futureTask("queued", 11), NOW);
+    await sending;
+    const saves = harness.savedPaths.length;
+    destroyMobileNotificationStore();
+    resolveSend(99);
+    await Promise.all([first, queued]);
+    assert.equal(calls, 1);
+    assert.deepEqual(harness.cancelled, [99]);
+    assert.equal(harness.savedPaths.length, saves);
+});
+
+// Regression: 同步快照只修改标题时，时间 diff 不能留下旧标题。
+test("全量校准更新同一触发时间的标题并保持后续幂等", async () => {
+    const h = createHarness();
+    await initMobileNotificationStore(h.plugin);
+    const original = futureTask("title-sync", 10);
+    await rebuildAllMobileNotifications([original], NOW);
+    await rebuildAllMobileNotifications([{ ...original, title: "同步后的标题" }], NOW);
+    assert.deepEqual(h.cancelled, [1]);
+    assert.equal(h.sent[1]?.options.title, "同步后的标题");
+    await rebuildAllMobileNotifications([{ ...original, title: "同步后的标题" }], NOW);
+    assert.equal(h.sent.length, 2);
+});
+
+// Regression: 单个通知 API 失败不能阻止批次内其他任务完成清理和注册。
+test("批量发送与取消 API 异常隔离，Someday 和空计划清理旧通知", async () => {
+    const { onTasksChangedV2 } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const h = createHarness();
+    await initMobileNotificationStore(h.plugin);
+    const original = [futureTask("someday", 10), futureTask("empty", 10)];
+    await rebuildAllMobileNotifications(original, NOW);
+    configureMobileNotificationRuntime({
+        getFrontend: () => "mobile",
+        platformUtils: {
+            async sendNotification(options) {
+                if (options.title === "失败") throw new Error("原生发送失败");
+                h.sent.push({ id: 9, options });
+                return 9;
+            },
+            cancelNotification(id) {
+                h.cancelled.push(id);
+                if (id === 1) throw new Error("失效 ID");
+            },
+        },
+    });
+    await onTasksChangedV2(
+        {
+            upserts: [
+                { ...original[0], status: "someday" },
+                { ...original[1], reminder: "[]" },
+                { ...futureTask("failed", 11), title: "失败" },
+                futureTask("success", 11),
+            ],
+            deletedBlockIds: [],
+        },
+        new Map(original.map((task) => [task.blockId, task])),
+        NOW,
+    );
+    assert.deepEqual(h.cancelled, [1, 2]);
+    assert.deepEqual(h.readStorage(), { "device-a": { success: [9] } });
+    await onTasksChangedV2(
+        { upserts: [original[0]], deletedBlockIds: [] },
+        new Map([["someday", { ...original[0], status: "someday" }]]),
+        NOW,
+    );
+    assert.equal(h.sent.length, 4);
+});
+
+// Regression: 浏览器增量包含完成和删除时，也不能调用原生平台 API。
+test("浏览器批量增量没有平台调用", async () => {
+    const { onTasksChangedV2 } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    for (const frontend of ["browser-desktop", "browser-mobile"] as const) {
+        destroyMobileNotificationStore();
+        const h = createHarness(() => frontend);
+        h.setStorage({ "device-a": { old: [42] } });
+        await initMobileNotificationStore(h.plugin);
+        await onTasksChangedV2(
+            {
+                upserts: [futureTask("new", 10), { ...futureTask("old", 10), status: "done" }],
+                deletedBlockIds: ["old"],
+            },
+            new Map(),
+            NOW,
+        );
+        assert.deepEqual(h.sent, []);
+        assert.deepEqual(h.cancelled, []);
+    }
+});
+
+// Regression: 重启时失效 ID 的取消异常不能阻断新计划，重复初始化不能重复取消。
+test("重启取消失败仍重建，重复初始化保持幂等且保留其他设备", async () => {
+    const h = createHarness();
+    h.setStorage({ "device-a": { old: [41, 42] }, "device-b": { remote: [88] } });
+    const operations: string[] = [];
+    configureMobileNotificationRuntime({
+        getFrontend: () => "mobile",
+        platformUtils: {
+            async sendNotification() {
+                operations.push("send");
+                return 99;
+            },
+            cancelNotification(id) {
+                operations.push(`cancel:${id}`);
+                if (id === 41) throw new Error("旧 ID 已失效");
+            },
+        },
+    });
+    await initMobileNotificationStore(h.plugin);
+    await rebuildAllMobileNotifications([futureTask("current", 10)], NOW);
+    await initMobileNotificationStore(h.plugin);
+    await rebuildAllMobileNotifications([futureTask("current", 10)], NOW);
+    assert.deepEqual(operations, ["cancel:41", "cancel:42", "send"]);
+    assert.deepEqual(h.readStorage(), { "device-a": { current: [99] }, "device-b": { remote: [88] } });
+});

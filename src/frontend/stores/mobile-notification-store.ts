@@ -9,6 +9,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 import type { ReminderSettings } from "../../shared/settings";
 import { Mutex } from "../../shared/mutex";
 import { taskStore } from "./task-store";
+import type { TaskCollectionChanges } from "./task-sync-reducer";
 import {
     buildPlanSnapshot,
     calculateNotificationTriggers,
@@ -45,7 +46,9 @@ interface SiyuanWindow {
 let pluginRef: Plugin | null = null;
 let storage: MobileNotificationStorage = {};
 let currentPlanSnapshot: Map<string, readonly number[]> = new Map();
+const registeredContents = new Map<string, string>();
 let initialized = false;
+let initialization: Promise<void> | null = null;
 let lifecycleGeneration = 0;
 let runtimeOverride: MobileNotificationRuntime | null = null;
 let runtimePromise: Promise<MobileNotificationRuntime> | null = null;
@@ -123,11 +126,15 @@ async function saveStorageUnlocked(): Promise<void> {
     }
 }
 
-async function withStorageLock<T>(operation: () => Promise<T>): Promise<T> {
-    const handle = storageMutex.acquire();
-    const lock = await handle.promise;
+function isCurrentGeneration(generation: number): boolean {
+    return generation === lifecycleGeneration && pluginRef !== null;
+}
+
+async function withStorageLock(operation: (generation: number) => Promise<void>): Promise<void> {
+    const generation = lifecycleGeneration;
+    const lock = await storageMutex.acquire().promise;
     try {
-        return await operation();
+        if (generation === lifecycleGeneration) await operation(generation);
     } finally {
         lock.release();
     }
@@ -153,10 +160,21 @@ function removeCurrentDeviceStorage(): void {
 async function cancelNotificationId(id: number): Promise<void> {
     try {
         const runtime = await getPlatformRuntime();
+        if (!shouldScheduleSystemNotification(runtime)) return;
         await runtime.platformUtils.cancelNotification(id);
     } catch {
         // A stale native notification ID must never block cleanup of other IDs.
     }
+}
+
+function notificationContent(task: TaskCacheEntry, nowMs: number): string {
+    return JSON.stringify(
+        calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS).map((trigger) => [
+            trigger.title,
+            trigger.kind,
+            buildNotificationBody(trigger),
+        ]),
+    );
 }
 
 function formatLocalTime(timestampMs: number): string {
@@ -172,21 +190,29 @@ function buildNotificationBody(trigger: MobileNotificationTrigger): string {
     return (i18n.reminderSystemNotificationBody || "").replace("{time}", formatLocalTime(trigger.triggerTimeMs));
 }
 
-async function sendNotificationForTrigger(trigger: MobileNotificationTrigger): Promise<number | null> {
+async function sendNotificationForTrigger(
+    trigger: MobileNotificationTrigger,
+    generation: number,
+): Promise<number | null> {
     const settings = get(taskStore).settings?.reminderSettings;
-    if (!settings?.systemNotificationEnabled) return null;
+    if (!isCurrentGeneration(generation) || !settings?.systemNotificationEnabled) return null;
 
     try {
         const runtime = await getPlatformRuntime();
-        if (!shouldScheduleSystemNotification(runtime)) return null;
+        if (!isCurrentGeneration(generation) || !shouldScheduleSystemNotification(runtime)) return null;
         const id = await runtime.platformUtils.sendNotification({
             title: trigger.title,
             body: buildNotificationBody(trigger),
             delayInSeconds: Math.max(0, Math.floor((trigger.triggerTimeMs - Date.now()) / 1000)),
             channel: REMINDER_MOBILE_CHANNEL,
         });
+        if (!isCurrentGeneration(generation)) {
+            if (id >= 0) await runtime.platformUtils.cancelNotification(id);
+            return null;
+        }
         return id >= 0 ? id : null;
-    } catch {
+    } catch (error) {
+        console.error("[NextAction] send mobile notification failed:", error);
         return null;
     }
 }
@@ -197,28 +223,38 @@ async function canScheduleSystemNotification(): Promise<boolean> {
     return !!runtime && shouldScheduleSystemNotification(runtime);
 }
 
-async function cancelBlockUnlocked(blockId: string): Promise<void> {
+async function cancelBlockUnlocked(blockId: string, generation: number): Promise<void> {
+    if (!isCurrentGeneration(generation)) return;
     const deviceStorage = currentDeviceStorage();
     const ids = deviceStorage[blockId];
     if (!ids) return;
     await Promise.all(ids.map((id) => cancelNotificationId(id)));
+    if (!isCurrentGeneration(generation)) return;
     delete deviceStorage[blockId];
+    registeredContents.delete(blockId);
     await saveStorageUnlocked();
+    if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map([...currentPlanSnapshot].filter(([id]) => id !== blockId));
 }
 
-async function scheduleTaskUnlocked(task: TaskCacheEntry, nowMs: number): Promise<void> {
-    await cancelBlockUnlocked(task.blockId);
+async function scheduleTaskUnlocked(task: TaskCacheEntry, nowMs: number, generation: number): Promise<void> {
+    await cancelBlockUnlocked(task.blockId, generation);
+    if (!isCurrentGeneration(generation)) return;
     const triggers = calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS);
     const ids: number[] = [];
     const successfulTriggerTimes: number[] = [];
     for (const trigger of triggers) {
-        const id = await sendNotificationForTrigger(trigger);
+        const id = await sendNotificationForTrigger(trigger, generation);
+        if (!isCurrentGeneration(generation)) {
+            await Promise.all(ids.map((registeredId) => cancelNotificationId(registeredId)));
+            return;
+        }
         if (id !== null) {
             ids.push(id);
             successfulTriggerTimes.push(trigger.triggerTimeMs);
         }
     }
+    if (!isCurrentGeneration(generation)) return;
     const deviceStorage = currentDeviceStorage();
     if (ids.length > 0) {
         deviceStorage[task.blockId] = ids;
@@ -226,39 +262,57 @@ async function scheduleTaskUnlocked(task: TaskCacheEntry, nowMs: number): Promis
         delete deviceStorage[task.blockId];
     }
     await saveStorageUnlocked();
+    if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map(currentPlanSnapshot);
     if (successfulTriggerTimes.length > 0) {
         currentPlanSnapshot.set(task.blockId, successfulTriggerTimes);
+        registeredContents.set(task.blockId, notificationContent(task, nowMs));
     } else {
         currentPlanSnapshot.delete(task.blockId);
+        registeredContents.delete(task.blockId);
     }
 }
 
-async function cancelCurrentDeviceUnlocked(): Promise<void> {
+async function cancelCurrentDeviceUnlocked(generation: number): Promise<void> {
+    if (!isCurrentGeneration(generation)) return;
     const deviceStorage = currentDeviceStorage();
     const ids = Object.values(deviceStorage).flat();
     await Promise.all(ids.map((id) => cancelNotificationId(id)));
+    if (!isCurrentGeneration(generation)) return;
     removeCurrentDeviceStorage();
     await saveStorageUnlocked();
+    if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map();
+    registeredContents.clear();
 }
 
-export async function initMobileNotificationStore(plugin: Plugin): Promise<void> {
+export async function initMobileNotificationStore(
+    plugin: Plugin,
+    canInitialize: () => boolean = () => true,
+): Promise<boolean> {
+    if (pluginRef === plugin && initialized) return true;
+    if (pluginRef === plugin && initialization) {
+        await initialization;
+        return initialized;
+    }
     const generation = ++lifecycleGeneration;
-    await withStorageLock(async () => {
-        if (generation !== lifecycleGeneration) return;
-        pluginRef = plugin;
+    pluginRef = plugin;
+    initialization = withStorageLock(async () => {
         const loaded = await loadStorageUnlocked();
-        if (generation !== lifecycleGeneration) return;
+        if (!isCurrentGeneration(generation)) return;
         storage = loaded;
         const runtime = await getPlatformRuntime().catch(() => null);
-        if (generation !== lifecycleGeneration) return;
+        if (!isCurrentGeneration(generation)) return;
+        if (!canInitialize()) return;
         if (runtime && shouldScheduleSystemNotification(runtime)) {
-            await cancelCurrentDeviceUnlocked();
+            await cancelCurrentDeviceUnlocked(generation);
         }
-        if (generation !== lifecycleGeneration) return;
+        if (!isCurrentGeneration(generation)) return;
         initialized = true;
     });
+    await initialization;
+    if (generation === lifecycleGeneration) initialization = null;
+    return generation === lifecycleGeneration && initialized;
 }
 
 export function destroyMobileNotificationStore(): void {
@@ -266,21 +320,23 @@ export function destroyMobileNotificationStore(): void {
     pluginRef = null;
     storage = {};
     currentPlanSnapshot = new Map();
+    registeredContents.clear();
     initialized = false;
+    initialization = null;
 }
 
 export async function scheduleMobileNotifications(task: TaskCacheEntry, nowMs = Date.now()): Promise<void> {
     if (!initialized) return;
-    if (!(await canScheduleSystemNotification())) return;
-    await withStorageLock(async () => {
-        await scheduleTaskUnlocked(task, nowMs);
+    await withStorageLock(async (generation) => {
+        if (!(await canScheduleSystemNotification()) || !isCurrentGeneration(generation)) return;
+        await scheduleTaskUnlocked(task, nowMs, generation);
     });
 }
 
 export async function cancelMobileNotifications(blockId: string): Promise<void> {
     if (!initialized) return;
-    await withStorageLock(async () => {
-        await cancelBlockUnlocked(blockId);
+    await withStorageLock(async (generation) => {
+        await cancelBlockUnlocked(blockId, generation);
     });
 }
 
@@ -300,16 +356,30 @@ export async function updateMobileNotifications(
     ) {
         return;
     }
-    if (newTask.status !== "done" && newTask.status !== "someday" && !(await canScheduleSystemNotification())) {
-        return;
-    }
-    await withStorageLock(async () => {
+    await withStorageLock(async (generation) => {
         if (newTask.status === "done" || newTask.status === "someday") {
-            await cancelBlockUnlocked(newTask.blockId);
-        } else {
-            await scheduleTaskUnlocked(newTask, nowMs);
+            await cancelBlockUnlocked(newTask.blockId, generation);
+        } else if (await canScheduleSystemNotification()) {
+            await scheduleTaskUnlocked(newTask, nowMs, generation);
         }
     });
+}
+
+/** Consume committed changes without loading or writing tasks. */
+export async function onTasksChangedV2(
+    changes: TaskCollectionChanges,
+    previous: ReadonlyMap<string, TaskCacheEntry>,
+    nowMs = Date.now(),
+): Promise<void> {
+    const results = await Promise.allSettled([
+        ...changes.deletedBlockIds.map((blockId) => cancelMobileNotifications(blockId)),
+        ...changes.upserts.map((task) => updateMobileNotifications(task, previous.get(task.blockId), nowMs)),
+    ]);
+    for (const result of results) {
+        if (result.status === "rejected") {
+            console.error("[NextAction] update mobile notifications failed:", result.reason);
+        }
+    }
 }
 
 export async function rebuildAllMobileNotifications(
@@ -317,24 +387,23 @@ export async function rebuildAllMobileNotifications(
     nowMs = Date.now(),
 ): Promise<void> {
     if (!initialized) return;
-    const runtime = await getPlatformRuntime().catch(() => null);
-    if (
-        !runtime ||
-        !shouldScheduleSystemNotification(runtime) ||
-        !get(taskStore).settings?.reminderSettings?.systemNotificationEnabled
-    ) {
-        return;
-    }
-
-    await withStorageLock(async () => {
+    await withStorageLock(async (generation) => {
+        if (!(await canScheduleSystemNotification()) || !isCurrentGeneration(generation)) return;
         const next = buildPlanSnapshot(tasks, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS);
         const diff = diffPlanSnapshot(currentPlanSnapshot, next);
         const taskById = new Map(tasks.map((task) => [task.blockId, task]));
-        for (const blockId of diff.toCancel) await cancelBlockUnlocked(blockId);
+        diff.unchanged = diff.unchanged.filter((blockId) => {
+            const task = taskById.get(blockId)!;
+            if (registeredContents.get(blockId) === notificationContent(task, nowMs)) return true;
+            diff.toRebuild.push(blockId);
+            return false;
+        });
+        for (const blockId of diff.toCancel) await cancelBlockUnlocked(blockId, generation);
         for (const blockId of diff.toRebuild) {
             const task = taskById.get(blockId);
-            if (task) await scheduleTaskUnlocked(task, nowMs);
+            if (task) await scheduleTaskUnlocked(task, nowMs, generation);
         }
+        if (!isCurrentGeneration(generation)) return;
         const registeredPlan = new Map<string, readonly number[]>();
         for (const blockId of diff.unchanged) {
             const times = next.get(blockId);
@@ -350,8 +419,8 @@ export async function rebuildAllMobileNotifications(
 
 export async function cancelAllMobileNotifications(): Promise<void> {
     if (!initialized) return;
-    await withStorageLock(async () => {
-        await cancelCurrentDeviceUnlocked();
+    await withStorageLock(async (generation) => {
+        await cancelCurrentDeviceUnlocked(generation);
     });
 }
 

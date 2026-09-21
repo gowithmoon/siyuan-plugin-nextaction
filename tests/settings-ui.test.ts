@@ -156,19 +156,11 @@ test("系统通知开关在音效之后可见，浏览器和关闭提醒时禁�
     assert.match(panel, /applyMobileNotificationSettings\([\s\S]*get\(taskStore\)\.allTasks/);
 });
 
-test("生产设置入口依赖的通知 store 在任务加载成功后初始化并随 runtime 销毁", () => {
+test("生产 runtime 接入通知生命周期控制器", () => {
     const runtime = read("src/frontend/controllers/frontend-runtime.ts");
-    assert.match(
-        runtime,
-        /await taskStore\.loadTasks\(\);\s+const state = get\(taskStore\);\s+if \(this\.disposed \|\| state\.loading \|\| state\.error\) return;/,
-    );
-    assert.match(
-        runtime,
-        /if \(!this\.mobileNotificationInitialization\) \{[\s\S]*this\.initializeMobileNotifications\(\)/,
-    );
-    assert.match(
-        runtime,
-        /await initMobileNotificationStore\(this\.plugin\);[\s\S]*await rebuildAllMobileNotifications\(get\(taskStore\)\.allTasks\)/,
-    );
-    assert.match(runtime, /destroyReminderStore\(\);\s+destroyMobileNotificationStore\(\)/);
+    const plugin = read("src/index.ts");
+    assert.match(runtime, /new MobileNotificationLifecycle\(plugin\)/);
+    assert.match(runtime, /this\.mobileNotifications\.start\(\)/);
+    assert.match(runtime, /this\.mobileNotifications\.dispose\(\)/);
+    assert.match(plugin, /super\.onDataChanged\?\.\(\);\s+this\.runtime\?\.handleDataChanged\(reason\)/);
 });
