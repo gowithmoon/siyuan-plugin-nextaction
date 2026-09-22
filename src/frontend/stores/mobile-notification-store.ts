@@ -168,9 +168,14 @@ function notificationContent(task: TaskCacheEntry, nowMs: number): string {
         calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS).map((trigger) => [
             trigger.title,
             trigger.kind,
+            buildNotificationTitle(trigger),
             buildNotificationBody(trigger),
         ]),
     );
+}
+
+function fillNotificationTemplate(template: string, values: Record<string, string>): string {
+    return Object.entries(values).reduce((result, [key, value]) => result.split(`{${key}}`).join(value), template);
 }
 
 function formatLocalTime(timestampMs: number): string {
@@ -178,13 +183,84 @@ function formatLocalTime(timestampMs: number): string {
     return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function buildNotificationBody(trigger: MobileNotificationTrigger): string {
+function formatLocalDateTime(timestampMs: number, i18n: Record<string, string>): string {
+    const date = new Date(timestampMs);
+    const time = formatLocalTime(timestampMs);
+    const template = i18n.reminderSystemNotificationDateTime || "{month}/{day} {time}";
+    return fillNotificationTemplate(template, {
+        month: String(date.getMonth() + 1),
+        day: String(date.getDate()),
+        time,
+    });
+}
+
+function formatOffsetUnit(value: number, unit: "minutes" | "hours" | "days", i18n: Record<string, string>): string {
+    const configuredUnit =
+        i18n[
+            unit === "minutes"
+                ? "reminderOffsetMinutes"
+                : unit === "hours"
+                  ? "reminderOffsetHours"
+                  : "reminderOffsetDays"
+        ];
+    if (configuredUnit === "分钟" || configuredUnit === "小时" || configuredUnit === "天") {
+        return `${value}${configuredUnit}`;
+    }
+    const englishUnit = configuredUnit || unit;
+    const singularUnit = value === 1 ? englishUnit.replace(/s$/, "") : englishUnit;
+    return `${value} ${singularUnit}`;
+}
+
+function formatReminderOffset(minutes: number, i18n: Record<string, string>): string {
+    const totalMinutes = Math.max(0, Math.floor(minutes));
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const remainingMinutes = totalMinutes % 60;
+    const parts: string[] = [];
+    if (days > 0) parts.push(formatOffsetUnit(days, "days", i18n));
+    if (hours > 0) parts.push(formatOffsetUnit(hours, "hours", i18n));
+    if (remainingMinutes > 0 || parts.length === 0) parts.push(formatOffsetUnit(remainingMinutes, "minutes", i18n));
+    return parts.join(i18n.reminderOffsetDays === "天" ? "" : " ");
+}
+
+function notificationTaskTitle(trigger: MobileNotificationTrigger, i18n: Record<string, string>): string {
+    return trigger.title.trim() || i18n.untitled || "Untitled";
+}
+
+function buildNotificationTitle(trigger: MobileNotificationTrigger): string {
     const i18n = pluginRef?.i18n || {};
     if (trigger.kind === "review") {
-        return i18n.reminderSystemNotificationBodyReview || "";
+        return i18n.reminderSystemNotificationTitleReview || "NextAction · Review";
+    }
+    if (trigger.kind === "absolute") {
+        return i18n.reminderSystemNotificationTitleAbsolute || "NextAction · Scheduled reminder";
+    }
+    return i18n.reminderSystemNotificationTitleRelative || "NextAction · Task reminder";
+}
+
+function buildNotificationBody(trigger: MobileNotificationTrigger): string {
+    const i18n = pluginRef?.i18n || {};
+    const task = notificationTaskTitle(trigger, i18n);
+    if (trigger.kind === "review") {
+        const template = i18n.reminderSystemNotificationBodyReview || "{task}\nReview today";
+        const body = fillNotificationTemplate(template, { task });
+        return body.includes(task) ? body : `${task}\n${body}`;
     }
     const dueTimeMs = trigger.triggerTimeMs + trigger.minutesBefore * 60_000;
-    return (i18n.reminderSystemNotificationBody || "").replace("{time}", formatLocalTime(dueTimeMs));
+    const values = {
+        task,
+        offset: formatReminderOffset(trigger.minutesBefore, i18n),
+        dateTime: formatLocalDateTime(dueTimeMs, i18n),
+        time: formatLocalTime(dueTimeMs),
+    };
+    const template =
+        trigger.kind === "absolute"
+            ? i18n.reminderSystemNotificationBodyAbsolute || "{task}\nScheduled for {dateTime}"
+            : i18n.reminderSystemNotificationBodyRelative ||
+              i18n.reminderSystemNotificationBody ||
+              "{task}\nDue in {offset} · {dateTime}";
+    const body = fillNotificationTemplate(template, values);
+    return body.includes(task) ? body : `${task}\n${body}`;
 }
 
 async function sendNotificationForTrigger(
@@ -198,7 +274,7 @@ async function sendNotificationForTrigger(
         const runtime = await getPlatformRuntime();
         if (!isCurrentGeneration(generation) || !shouldScheduleSystemNotification(runtime)) return null;
         const id = await runtime.platformUtils.sendNotification({
-            title: trigger.title,
+            title: buildNotificationTitle(trigger),
             body: buildNotificationBody(trigger),
             delayInSeconds: Math.max(0, Math.floor((trigger.triggerTimeMs - Date.now()) / 1000)),
             channel: REMINDER_MOBILE_CHANNEL,

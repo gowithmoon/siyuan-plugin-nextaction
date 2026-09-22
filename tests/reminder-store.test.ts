@@ -37,7 +37,18 @@ test("原生通知共存时扫描仍每 30 秒入队，播放对应音效且重�
     Object.defineProperty(globalThis, "Audio", { configurable: true, value: FakeAudio });
     const data: Record<string, unknown> = {};
     const plugin = {
-        i18n: { reminderSystemNotificationBody: "{time} 到期", reminderSystemNotificationBodyReview: "今日回顾" },
+        i18n: {
+            reminderSystemNotificationTitleRelative: "NextAction · 任务提醒",
+            reminderSystemNotificationTitleAbsolute: "NextAction · 定时提醒",
+            reminderSystemNotificationTitleReview: "NextAction · 回顾提醒",
+            reminderSystemNotificationBodyRelative: "{task}\n{offset}后到期 · {dateTime}",
+            reminderSystemNotificationBodyAbsolute: "{task}\n已到设定的提醒时间 · {dateTime}",
+            reminderSystemNotificationBodyReview: "{task}\n今天需要回顾",
+            reminderSystemNotificationDateTime: "{month}月{day}日 {time}",
+            reminderOffsetMinutes: "分钟",
+            reminderOffsetHours: "小时",
+            reminderOffsetDays: "天",
+        },
         async loadData(path: string) {
             return structuredClone(data[path] || {});
         },

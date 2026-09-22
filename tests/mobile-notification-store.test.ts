@@ -40,8 +40,16 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
     const savedPaths: string[] = [];
     const plugin: FakePlugin = {
         i18n: {
-            reminderSystemNotificationBody: "Due at {time}",
-            reminderSystemNotificationBodyReview: "Review today",
+            reminderSystemNotificationTitleRelative: "NextAction · Task reminder",
+            reminderSystemNotificationTitleAbsolute: "NextAction · Scheduled reminder",
+            reminderSystemNotificationTitleReview: "NextAction · Review",
+            reminderSystemNotificationBodyRelative: "{task}\nDue in {offset} · {dateTime}",
+            reminderSystemNotificationBodyAbsolute: "{task}\nScheduled for {dateTime}",
+            reminderSystemNotificationBodyReview: "{task}\nReview today",
+            reminderSystemNotificationDateTime: "{month}/{day} {time}",
+            reminderOffsetMinutes: "minutes",
+            reminderOffsetHours: "hours",
+            reminderOffsetDays: "days",
         },
         async loadData() {
             return persisted;
@@ -102,7 +110,8 @@ test("支持的平台调度通知并按设备持久化 ID", async () => {
 
     assert.equal(harness.sent.length, 1);
     assert.equal(harness.sent[0].options.channel, "NextAction Reminders");
-    assert.equal(harness.sent[0].options.body, "Due at 10:00");
+    assert.equal(harness.sent[0].options.title, "NextAction · Scheduled reminder");
+    assert.equal(harness.sent[0].options.body, "Task\nScheduled for 1/1 10:00");
     assert.deepEqual(harness.readStorage(), { "device-a": { "task-a": [1] } });
 });
 
@@ -110,8 +119,24 @@ test("支持的平台调度通知并按设备持久化 ID", async () => {
 test("双语正文区分提前提醒的截止时间、绝对提醒和回顾", async (context) => {
     context.mock.timers.enable({ apis: ["Date"], now: NOW });
     for (const [locale, expected] of [
-        ["en", ["Due at 10:00", "Due at 23:59", "Due at 11:00", "Review today"]],
-        ["zh-CN", ["10:00 到期", "23:59 到期", "11:00 到期", "今日回顾"]],
+        [
+            "en",
+            [
+                "Task\nDue in 1 hour · 1/1 10:00",
+                "Task\nDue in 1 hour · 1/1 23:59",
+                "Task\nScheduled for 1/1 11:00",
+                "Task\nReview today",
+            ],
+        ],
+        [
+            "zh-CN",
+            [
+                "Task\n1小时后到期 · 1月1日 10:00",
+                "Task\n1小时后到期 · 1月1日 23:59",
+                "Task\n已到设定的提醒时间 · 1月1日 11:00",
+                "Task\n今天需要回顾",
+            ],
+        ],
     ] as const) {
         destroyMobileNotificationStore();
         const h = createHarness(() => "desktop");
@@ -133,10 +158,46 @@ test("双语正文区分提前提醒的截止时间、绝对提醒和回顾", as
             locale,
         );
         assert.deepEqual(
+            h.sent.map(({ options }) => options.title),
+            locale === "en"
+                ? [
+                      "NextAction · Task reminder",
+                      "NextAction · Task reminder",
+                      "NextAction · Scheduled reminder",
+                      "NextAction · Review",
+                  ]
+                : ["NextAction · 任务提醒", "NextAction · 任务提醒", "NextAction · 定时提醒", "NextAction · 回顾提醒"],
+            locale,
+        );
+        assert.deepEqual(
             h.sent.map(({ options }) => options.delayInSeconds),
             [3600, 53999, 10800, 3600],
         );
     }
+});
+
+test("提前量正文使用可读的天、小时和复合时长", async (context) => {
+    context.mock.timers.enable({ apis: ["Date"], now: NOW });
+    const h = createHarness(() => "desktop");
+    const plugin = h.plugin as FakePlugin;
+    plugin.i18n = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8"));
+    await initMobileNotificationStore(h.plugin);
+    await rebuildAllMobileNotifications(
+        [
+            taskFactory("days", { due: "2030-01-04T10:00", reminder: '[{"type":"relative","minutes":4320}]' }),
+            taskFactory("hours", { due: "2030-01-01T20:30", reminder: '[{"type":"relative","minutes":720}]' }),
+            taskFactory("mixed", { due: "2030-01-01T10:30", reminder: '[{"type":"relative","minutes":90}]' }),
+        ],
+        NOW,
+    );
+    assert.deepEqual(
+        h.sent.map(({ options }) => options.body),
+        [
+            "Task\nDue in 3 days · 1/4 10:00",
+            "Task\nDue in 12 hours · 1/1 20:30",
+            "Task\nDue in 1 hour 30 minutes · 1/1 10:30",
+        ],
+    );
 });
 
 test("浏览器端和平台 -1 都静默跳过原生通知", async () => {
@@ -377,7 +438,7 @@ test("批量 delta 更新到期、标题、完成和删除，并隔离平台异�
     );
     assert.deepEqual(harness.cancelled.sort(), [1, 2, 3, 4]);
     assert.equal(harness.sent.length, 3);
-    assert.ok(harness.sent.some((item) => item.options.title === "新标题"));
+    assert.ok(harness.sent.some((item) => String(item.options.body).startsWith("新标题\n")));
     assert.deepEqual(Object.keys((harness.readStorage() as Record<string, object>)["device-a"]).sort(), [
         "due",
         "new",
@@ -431,7 +492,8 @@ test("全量校准更新同一触发时间的标题并保持后续幂等", async
     await rebuildAllMobileNotifications([original], NOW);
     await rebuildAllMobileNotifications([{ ...original, title: "同步后的标题" }], NOW);
     assert.deepEqual(h.cancelled, [1]);
-    assert.equal(h.sent[1]?.options.title, "同步后的标题");
+    assert.equal(h.sent[1]?.options.title, "NextAction · Scheduled reminder");
+    assert.match(String(h.sent[1]?.options.body), /^同步后的标题\n/);
     await rebuildAllMobileNotifications([{ ...original, title: "同步后的标题" }], NOW);
     assert.equal(h.sent.length, 2);
 });
@@ -447,7 +509,7 @@ test("批量发送与取消 API 异常隔离，Someday 和空计划清理旧通�
         getFrontend: () => "mobile",
         platformUtils: {
             async sendNotification(options) {
-                if (options.title === "失败") throw new Error("原生发送失败");
+                if (String(options.body).startsWith("失败\n")) throw new Error("原生发送失败");
                 h.sent.push({ id: 9, options });
                 return 9;
             },

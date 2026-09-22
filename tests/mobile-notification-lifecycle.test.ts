@@ -33,7 +33,7 @@ function harness() {
         getFrontend: () => "mobile",
         platformUtils: {
             async sendNotification(options) {
-                sent.push(options.title || "");
+                sent.push(String(options.body || "").split("\n", 1)[0]);
                 return nextId++;
             },
             cancelNotification(id) {
