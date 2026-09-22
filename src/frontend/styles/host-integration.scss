@@ -162,15 +162,15 @@
     font-size: 12px;
 }
 
-// 文档任务状态按钮位于思源文档图标与标题文字之间，避免复用文档图标或拦截正文块菜单。
+// 文档任务状态按钮保留在标题前导区，并根据主题装饰动态让出安全间距。
 .protyle-title.na-document-task-title {
     .protyle-title__input {
-        padding-left: 32px;
+        padding-inline-start: calc(32px + var(--nextaction-document-task-leading-offset, 0px));
     }
 
     .na-document-task-status {
         position: absolute;
-        left: 2px;
+        inset-inline-start: calc(2px + var(--nextaction-document-task-leading-offset, 0px));
         top: 34px;
         transform: translateY(-50%);
         width: 22px;

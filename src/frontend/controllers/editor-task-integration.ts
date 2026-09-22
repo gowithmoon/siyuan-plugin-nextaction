@@ -30,6 +30,8 @@ export class EditorTaskIntegration {
     private nativeTaskObserver: MutationObserver | null = null;
     private nativeTaskRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private taskStoreUnsubscribe: (() => void) | null = null;
+    private documentTitleLayoutObserver: ResizeObserver | null = null;
+    private documentThemeObserver: MutationObserver | null = null;
     private started = false;
 
     constructor(
@@ -109,6 +111,54 @@ export class EditorTaskIntegration {
         );
     };
 
+    private cssLength(value: string): number {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    private syncDocumentTaskTitleLayout(title: HTMLElement): void {
+        const titleRect = title.getBoundingClientRect();
+        const computed = getComputedStyle(title);
+        const direction = computed.direction;
+        const leadingPadding =
+            direction === "rtl" ? this.cssLength(computed.paddingRight) : this.cssLength(computed.paddingLeft);
+        const leadingBorder =
+            direction === "rtl" ? this.cssLength(computed.borderRightWidth) : this.cssLength(computed.borderLeftWidth);
+        // SiYuan's default title padding is 2px; only reserve the theme-added portion.
+        let leadingDecoration = Math.max(0, leadingPadding - 2) + leadingBorder;
+
+        // A theme can draw a leading marker with either title pseudo-element. Reserve its
+        // measured width instead of guessing a universal left offset.
+        for (const pseudo of ["::before", "::after"] as const) {
+            const pseudoStyle = getComputedStyle(title, pseudo);
+            const content = pseudoStyle.content;
+            const width =
+                this.cssLength(pseudoStyle.width) +
+                this.cssLength(pseudoStyle.borderLeftWidth) +
+                this.cssLength(pseudoStyle.borderRightWidth);
+            const edge = direction === "rtl" ? pseudoStyle.right : pseudoStyle.left;
+            if (content === "none" || content === "normal" || !width || edge === "auto") continue;
+            const edgeOffset = this.cssLength(edge);
+            const decorationEnd = edgeOffset + width;
+            if (edgeOffset <= titleRect.width / 2 && decorationEnd > 0) {
+                leadingDecoration = Math.max(leadingDecoration, decorationEnd);
+            }
+        }
+
+        // Themes may reposition SiYuan's own document icon into the title box.
+        const icon = title.querySelector<HTMLElement>(".protyle-title__icon");
+        if (icon) {
+            const iconRect = icon.getBoundingClientRect();
+            const iconEnd = direction === "rtl" ? titleRect.right - iconRect.left : iconRect.right - titleRect.left;
+            if (iconEnd > 0 && iconEnd < titleRect.width / 2) leadingDecoration = Math.max(leadingDecoration, iconEnd);
+        }
+
+        const statusGap = 6;
+        const baseOffset = 2;
+        const extraOffset = Math.max(0, Math.ceil(leadingDecoration + statusGap - baseOffset));
+        title.style.setProperty("--nextaction-document-task-leading-offset", `${extraOffset}px`);
+    }
+
     private syncDocumentTaskTitleActions(tasks: TaskCacheEntry[], targetProtyle?: IProtyle): void {
         const tasksById = new Map(
             tasks.filter((task) => task.identificationSource === "document").map((task) => [task.blockId, task]),
@@ -123,9 +173,12 @@ export class EditorTaskIntegration {
             if (!task) {
                 existing?.remove();
                 title.classList.remove("na-document-task-title");
+                title.style.removeProperty("--nextaction-document-task-leading-offset");
                 continue;
             }
             title.classList.add("na-document-task-title");
+            this.syncDocumentTaskTitleLayout(title);
+            this.documentTitleLayoutObserver?.observe(title);
             const action = (existing || document.createElement("button")) as HTMLButtonElement;
             action.classList.add("na-document-task-status", "na-status-checkbox");
             action.type = "button";
@@ -638,6 +691,24 @@ export class EditorTaskIntegration {
         document.addEventListener("click", this.handleEditorStatusClick, true);
         document.addEventListener("keydown", this.handleEditorStatusKeydown, true);
         this.decorateNativeTaskActions(document);
+        if (typeof ResizeObserver !== "undefined") {
+            this.documentTitleLayoutObserver = new ResizeObserver((entries) => {
+                entries.forEach((entry) => this.syncDocumentTaskTitleLayout(entry.target as HTMLElement));
+            });
+        }
+        this.documentThemeObserver = new MutationObserver(() => {
+            this.syncDocumentTaskTitleActions(get(taskStore).allTasks);
+        });
+        this.documentThemeObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class", "style"],
+        });
+        if (document.body) {
+            this.documentThemeObserver.observe(document.body, {
+                attributes: true,
+                attributeFilter: ["class", "style"],
+            });
+        }
         this.taskStoreUnsubscribe = taskStore.subscribe((state) => {
             this.syncNativeTaskDomState(state.allTasks);
             this.syncDocumentTaskTitleActions(state.allTasks);
@@ -658,6 +729,7 @@ export class EditorTaskIntegration {
             if (hasNativeTask) this.scheduleNativeTaskRefresh();
         });
         this.nativeTaskObserver.observe(document.body, { childList: true, subtree: true });
+        this.syncDocumentTaskTitleActions(get(taskStore).allTasks);
     }
 
     dispose(): void {
@@ -669,6 +741,10 @@ export class EditorTaskIntegration {
         document.removeEventListener("keydown", this.handleEditorStatusKeydown, true);
         this.nativeTaskObserver?.disconnect();
         this.nativeTaskObserver = null;
+        this.documentTitleLayoutObserver?.disconnect();
+        this.documentTitleLayoutObserver = null;
+        this.documentThemeObserver?.disconnect();
+        this.documentThemeObserver = null;
         this.taskStoreUnsubscribe?.();
         this.taskStoreUnsubscribe = null;
         if (this.nativeTaskRefreshTimer) clearTimeout(this.nativeTaskRefreshTimer);
@@ -681,6 +757,7 @@ export class EditorTaskIntegration {
         for (const title of document.querySelectorAll<HTMLElement>(".protyle-title.na-document-task-title")) {
             title.querySelector(".na-document-task-status")?.remove();
             title.classList.remove("na-document-task-title");
+            title.style.removeProperty("--nextaction-document-task-leading-offset");
         }
         this.blockIconHandler = null;
         this.editorTitleIconHandler = null;

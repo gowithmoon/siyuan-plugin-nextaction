@@ -26,6 +26,17 @@ test("文档任务目标不拥有正文状态操作按钮", () => {
     assert.equal(target?.identificationSource, "document");
 });
 
+test("文档任务状态图标避开标题左侧主题装饰", () => {
+    // Regression: themes may draw a document icon or a wide marker on the title's leading edge.
+    assert.match(
+        source,
+        /padding-inline-start:\s*calc\(32px \+ var\(--nextaction-document-task-leading-offset, 0px\)\)/,
+    );
+    assert.match(source, /inset-inline-start:\s*calc\(2px \+ var\(--nextaction-document-task-leading-offset, 0px\)\)/);
+    assert.match(integration, /getComputedStyle\(title, pseudo\)/);
+    assert.match(integration, /ResizeObserver/);
+});
+
 test("原生任务 checkbox 使用六态样式并在 capture 阶段阻止 SiYuan 二态切换", () => {
     // Regression: native checkbox clicks must always open NextAction's status menu.
     assert.match(source, /\[data-type="NodeListItem"\]\[data-subtype="t"\]/);
