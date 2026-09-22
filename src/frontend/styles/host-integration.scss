@@ -171,7 +171,7 @@
     .na-document-task-status {
         position: absolute;
         inset-inline-start: calc(2px + var(--nextaction-document-task-leading-offset, 0px));
-        top: 34px;
+        top: 50%;
         transform: translateY(-50%);
         width: 22px;
         height: 22px;
