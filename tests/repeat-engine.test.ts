@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
     advanceRepeatState,
     createRepeatState,
+    parseRepeatRule,
     normalizeRepeatRule,
     previewRepeatOccurrences,
     type RepeatRuleV2,
@@ -22,8 +23,27 @@ function rule(partial: Partial<RepeatRuleV2> = {}): RepeatRuleV2 {
     };
 }
 
-test("仅接受 V2 重复规则并补齐 V2 可选默认值", () => {
-    assert.equal(normalizeRepeatRule({ freq: "week", interval: 2, from: "complete" }), null);
+test("兼容旧格式重复规则并补齐 V2 默认值", () => {
+    assert.deepEqual(normalizeRepeatRule({ freq: "week", interval: 2, from: "complete" }), {
+        version: 2,
+        frequency: "week",
+        interval: 2,
+        basis: "completion",
+        overflow: "lastDay",
+        missedPolicy: "nextFuture",
+        end: { type: "never" },
+    });
+    assert.equal(normalizeRepeatRule({ freq: "hour", interval: 2 }), null);
+    assert.deepEqual(parseRepeatRule('{"freq":"week","interval":2}'), {
+        version: 2,
+        frequency: "week",
+        interval: 2,
+        basis: "schedule",
+        overflow: "lastDay",
+        missedPolicy: "nextFuture",
+        end: { type: "never" },
+    });
+    assert.equal(parseRepeatRule("not json"), null);
     assert.deepEqual(normalizeRepeatRule({ version: 2, frequency: "week", interval: 2, basis: "completion" }), {
         version: 2,
         frequency: "week",

@@ -6,6 +6,7 @@ import {
     decodeCustomFieldValue,
     encodeCustomFieldValue,
     isCustomFieldApplicable,
+    normalizeCustomFieldDefs,
     validateCustomFieldDefinition,
     validateCustomFieldDefinitions,
     type CustomFieldDef,
@@ -34,6 +35,24 @@ test("自定义字段只接受完整 V2 定义", () => {
         validateCustomFieldDefinition({ ...field("text"), legacyKey: "delegatedTo" } as any) ?? "",
         /unknown properties/,
     );
+});
+
+test("持久化字段归一化保留合法字段并丢弃不兼容定义", () => {
+    const valid = field("text", { id: "owner-field", key: "owner", label: "委托给" });
+    const legacyMetadata = { ...valid, legacyKey: "delegatedTo", migrationIssue: "legacy-key-normalized" };
+    assert.deepEqual(normalizeCustomFieldDefs([]), []);
+    assert.deepEqual(normalizeCustomFieldDefs(null), []);
+    const result = normalizeCustomFieldDefs([
+        legacyMetadata,
+        { ...valid, id: "old-version", key: "old", version: 1 },
+        null,
+        { ...valid, id: "duplicate-key" },
+        { ...valid, id: "owner-field", key: "second-owner" },
+        { ...valid, id: "select-without-options", key: "invalid-select", type: "singleSelect", options: [] },
+    ]);
+
+    assert.equal(result.length, 1);
+    assert.deepEqual(result[0], valid);
 });
 
 test("九种字段类型使用稳定的字符串存储格式", () => {

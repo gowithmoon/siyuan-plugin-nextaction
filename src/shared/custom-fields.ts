@@ -60,6 +60,90 @@ export function normalizeCustomFieldKey(key: string): string {
     return key.trim().toLowerCase();
 }
 
+function stableId(seed: string): string {
+    const safe = seed
+        .replace(/[^a-z0-9-]/gi, "-")
+        .toLowerCase()
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    return `legacy-${safe || "field"}`;
+}
+
+function optionId(label: string, index: number): string {
+    return `option-${index + 1}-${stableId(label).slice(7) || "value"}`;
+}
+
+function normalizeOptions(raw: unknown): CustomFieldOption[] | undefined {
+    if (!Array.isArray(raw)) return undefined;
+    const seen = new Set<string>();
+    const result: CustomFieldOption[] = [];
+    for (let index = 0; index < raw.length; index++) {
+        const item = raw[index];
+        const source = isRecord(item) ? item : null;
+        const label =
+            typeof item === "string" ? item.trim() : typeof source?.label === "string" ? source.label.trim() : "";
+        if (!label) continue;
+        const requestedId = typeof source?.id === "string" ? source.id : optionId(label, index);
+        const id = requestedId || optionId(label, index);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        result.push({
+            id,
+            label,
+            status: source?.status === "archived" ? "archived" : "active",
+        });
+    }
+    return result;
+}
+
+function normalizeScope(scope: unknown): CustomFieldScope {
+    if (!isRecord(scope)) return { mode: "all" };
+    if (scope.mode === "task" || scope.mode === "project") return { mode: scope.mode };
+    if (scope.mode === "projectTree") {
+        return {
+            mode: "projectTree",
+            projectIds: Array.isArray(scope.projectIds)
+                ? scope.projectIds.filter((id): id is string => typeof id === "string" && !!id)
+                : [],
+        };
+    }
+    return { mode: "all" };
+}
+
+export function normalizeCustomFieldDefs(raw: unknown): CustomFieldDef[] {
+    if (!Array.isArray(raw)) return [];
+    const result: CustomFieldDef[] = [];
+    const seenKeys = new Set<string>();
+    const seenIds = new Set<string>();
+
+    for (const item of raw) {
+        if (!isRecord(item) || item.version !== 2) continue;
+        const id = typeof item.id === "string" ? item.id : "";
+        const key = typeof item.key === "string" ? item.key : "";
+        if (!id || !key || !isValidCustomFieldKey(key) || seenIds.has(id) || seenKeys.has(key)) continue;
+        if (!isCustomFieldType(item.type)) continue;
+        if (item.options !== undefined && !Array.isArray(item.options)) continue;
+
+        const normalized: CustomFieldDef = {
+            version: 2,
+            id,
+            key,
+            label: typeof item.label === "string" && item.label.trim() ? item.label : key,
+            description: typeof item.description === "string" ? item.description : "",
+            type: item.type,
+            status: item.status === "archived" ? "archived" : "active",
+            scope: normalizeScope(item.scope),
+            showOnCard: typeof item.showOnCard === "boolean" ? item.showOnCard : true,
+            ...(item.options !== undefined ? { options: normalizeOptions(item.options) || [] } : {}),
+        };
+        if (validateCustomFieldDefinition(normalized)) continue;
+        seenIds.add(id);
+        seenKeys.add(key);
+        result.push(normalized);
+    }
+    return result;
+}
+
 export function validateCustomFieldDefinition(field: CustomFieldDef): string | null {
     if (!isRecord(field) || field.version !== 2) return "custom field version must be 2";
     const allowedKeys = new Set([

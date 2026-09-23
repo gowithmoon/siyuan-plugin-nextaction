@@ -63,12 +63,7 @@ import {
     type RepeatStateV1,
 } from "./repeat-engine";
 import type { PluginSettings } from "../shared/settings";
-import {
-    encodeCustomFieldValue,
-    isCustomFieldApplicable,
-    validateCustomFieldDefinition,
-    type CustomFieldDef,
-} from "../shared/custom-fields";
+import { encodeCustomFieldValue, isCustomFieldApplicable, type CustomFieldDef } from "../shared/custom-fields";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
 import type { ConfirmedTaskChanges, TaskRepository } from "./task-repository";

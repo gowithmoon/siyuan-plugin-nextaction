@@ -8,6 +8,7 @@ import {
     mergeTaskCreationSettings,
     validateTaskCreationSettings,
 } from "../src/shared/task-creation.ts";
+import { normalizeSettings } from "../src/shared/settings.ts";
 
 function source(path: string): string {
     return readFileSync(new URL(path, import.meta.url), "utf8");
@@ -112,14 +113,23 @@ test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {
     const settings = source("../src/frontend/components/SettingsPanel.svelte");
     const general = source("../src/frontend/components/settings/GeneralSettingsPage.svelte");
     const mcp = source("../src/frontend/components/settings/McpSettingsPage.svelte");
-    const sharedSettings = source("../src/shared/settings.ts");
-
     assert.match(manager, /settings\.taskCreationSettings\.defaultCreateTarget/);
     assert.match(dialog, /initialSettings\.taskCreationSettings\.defaultCreateTarget/);
     assert.match(settings, /taskCreationSettings:\s*\{[\s\S]*defaultCreateTarget: taskCreationDefaultCreateTarget/);
     assert.match(general, /settingTaskCreationDefaultTarget/);
     assert.doesNotMatch(mcp, /settingMcpCreateTarget|mcpDefaultCreateTarget/);
-    assert.doesNotMatch(sharedSettings, /legacyMcp|migratedTaskCreation|Older versions stored/);
+
+    const migrated = normalizeSettings({
+        mcpSettings: {
+            enabled: true,
+            allowWrite: false,
+            defaultCreateTarget: "daily_note",
+            dailyNoteNotebookId: "legacy-notebook",
+        },
+    });
+    assert.equal(migrated.taskCreationSettings.defaultCreateTarget, "daily_note");
+    assert.equal(migrated.taskCreationSettings.dailyNoteNotebookId, "legacy-notebook");
+    assert.deepEqual(migrated.mcpSettings, { enabled: true, allowWrite: false });
 });
 
 test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {

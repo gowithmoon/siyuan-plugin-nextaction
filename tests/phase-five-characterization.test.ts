@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { DEFAULT_SETTINGS, mergeSettings, validateStoredSettings } from "../src/shared/settings.ts";
+import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings, validateSettings } from "../src/shared/settings.ts";
 import { taskDetailDraftKey, type TaskDetailDraft } from "../src/frontend/utils/task-detail-draft.ts";
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -103,24 +103,48 @@ test("当前设置部分更新保留默认值、任务创建目标和用户 AI �
     assert.equal(merged.aiSettings.prompts.review, "保留我的自定义回顾提示词");
 });
 
-test("持久化设置只接受当前完整结构", () => {
-    const current = mergeSettings(DEFAULT_SETTINGS, {
-        mcpSettings: { enabled: true, allowWrite: false },
-        taskCreationSettings: { ...DEFAULT_SETTINGS.taskCreationSettings, defaultCreateTarget: "daily_note" },
+test("旧版持久化设置逐字段归一化并保留自定义字段", () => {
+    const customField = {
+        version: 2 as const,
+        id: "owner-field",
+        key: "owner",
+        label: "委托给",
+        description: "",
+        type: "text" as const,
+        status: "active" as const,
+        scope: { mode: "all" as const },
+        showOnCard: true,
+    };
+    // Regression: 新增提醒设置导致完整 settings 被拒绝后，下一次保存会清空 customFields。
+    const normalized = normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        customFields: [customField],
+        reminderSettings: {
+            enabled: true,
+            defaultOffsets: [60, 720],
+            dueSound: "chime",
+            reviewSound: "soft",
+            soundEnabled: true,
+        },
+        mcpSettings: { enabled: true, allowWrite: false, defaultCreateTarget: "daily_note" },
+        taskCreationSettings: { inboxDocumentId: "" },
+        priorityEngine: { ...DEFAULT_SETTINGS.priorityEngine, overdueBase: 42, dueDecayTau: 99 },
+        defaultImportance: 99,
+        aiSettings: { prompts: { review: 12 } },
     });
-    assert.equal(validateStoredSettings(current), null);
-    assert.match(validateStoredSettings({ ...current, taskCreationSettings: undefined }) ?? "", /object/);
-    assert.match(
-        validateStoredSettings({
-            ...current,
-            mcpSettings: { ...current.mcpSettings, defaultCreateTarget: "inbox" },
-        }) ?? "",
-        /current settings structure/,
+
+    assert.deepEqual(normalized.customFields, [customField]);
+    assert.equal(
+        normalized.reminderSettings.systemNotificationEnabled,
+        DEFAULT_SETTINGS.reminderSettings.systemNotificationEnabled,
     );
-    assert.deepEqual(mergeSettings(DEFAULT_SETTINGS, current), current);
-    assert.match(source("../src/kernel.ts"), /incompatible saved settings, using defaults/);
-    const settingsSource = source("../src/shared/settings.ts");
-    assert.doesNotMatch(settingsSource, /LEGACY_AI_PROMPTS|customFieldSchemaVersion|legacyMcp/);
+    assert.equal(normalized.taskCreationSettings.defaultCreateTarget, "daily_note");
+    assert.equal(normalized.defaultImportance, DEFAULT_SETTINGS.defaultImportance);
+    assert.equal(normalized.priorityEngine.overdueBase, 42);
+    assert.equal(normalized.priorityEngine.dueDecayTau, DEFAULT_SETTINGS.priorityEngine.dueDecayTau);
+    assert.equal(normalized.aiSettings.prompts.review, DEFAULT_SETTINGS.aiSettings.prompts.review);
+    assert.equal(validateSettings(normalized), null);
+    assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
 
 test("设置保存链当前由面板持久化、宿主执行后处理", () => {

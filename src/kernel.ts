@@ -10,8 +10,8 @@ import { MyDayManager } from "./kernel/my-day-manager";
 import {
     DEFAULT_SETTINGS,
     mergeSettings,
+    normalizeSettings,
     validateSettings,
-    validateStoredSettings,
     type PluginSettings,
 } from "./shared/settings";
 import { McpToolExecutor } from "./kernel/mcp-tool-executor";
@@ -203,9 +203,7 @@ class NextActionKernelPlugin {
         try {
             const data = await this.siyuan.storage.get("settings.json");
             const saved = (await data.json()) as unknown;
-            const error = validateStoredSettings(saved);
-            if (!error) return mergeSettings(DEFAULT_SETTINGS, saved as PluginSettings);
-            await this.siyuan.logger.warn("loadSettings: incompatible saved settings, using defaults: " + error);
+            return normalizeSettings(saved);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             await this.siyuan.logger.warn("loadSettings: unreadable saved settings, using defaults: " + message);

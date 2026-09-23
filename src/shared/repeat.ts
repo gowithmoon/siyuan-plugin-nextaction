@@ -44,6 +44,12 @@ export interface RepeatOccurrencePreview {
     due: string;
 }
 
+interface LegacyRepeatRule {
+    freq?: unknown;
+    interval?: unknown;
+    from?: unknown;
+}
+
 const FREQUENCIES: RepeatFrequency[] = ["day", "week", "month", "year"];
 const BASES: RepeatBasis[] = ["schedule", "completion"];
 const OVERFLOWS: RepeatOverflow[] = ["lastDay", "skip"];
@@ -95,18 +101,20 @@ function normalizeMonthly(value: unknown): RepeatMonthlyPattern | null | undefin
 }
 
 export function normalizeRepeatRule(value: unknown): RepeatRuleV2 | null {
-    if (!isRecord(value) || value.version !== 2) return null;
+    if (!isRecord(value)) return null;
 
-    const frequency = value.frequency;
-    const basis = value.basis ?? "schedule";
+    const legacy = value as LegacyRepeatRule;
+    const frequency = value.version === 2 ? value.frequency : legacy.freq;
+    const basis =
+        value.version === 2 ? (value.basis ?? "schedule") : legacy.from === "complete" ? "completion" : "schedule";
     const interval = value.interval;
 
     if (!FREQUENCIES.includes(frequency as RepeatFrequency)) return null;
     if (!Number.isInteger(interval) || interval < 1 || interval > 999) return null;
     if (!BASES.includes(basis as RepeatBasis)) return null;
 
-    const overflow = value.overflow ?? "lastDay";
-    const missedPolicy = value.missedPolicy ?? "nextFuture";
+    const overflow = value.version === 2 ? (value.overflow ?? "lastDay") : "lastDay";
+    const missedPolicy = value.version === 2 ? (value.missedPolicy ?? "nextFuture") : "nextFuture";
     if (!OVERFLOWS.includes(overflow)) return null;
     if (!MISSED_POLICIES.includes(missedPolicy)) return null;
 

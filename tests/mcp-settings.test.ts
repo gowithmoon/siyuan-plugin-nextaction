@@ -25,7 +25,7 @@ test("MCP 设置只合并当前布尔权限", () => {
     assert.deepEqual(Object.keys(merged).sort(), ["allowWrite", "enabled"]);
 });
 
-test("MCP 设置校验拒绝旧目标字段和非布尔权限", () => {
+test("MCP 设置写入校验拒绝未知字段和非布尔权限", () => {
     assert.match(validateMcpSettings({ defaultCreateTarget: "inbox" } as any) ?? "", /unknown properties/);
     assert.match(validateMcpSettings({ allowWrite: "yes" as any }) ?? "", /allowWrite/);
 });

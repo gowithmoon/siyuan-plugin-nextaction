@@ -1,6 +1,6 @@
 // Plugin settings: type definition, defaults, and validation
 import { type ReminderSoundId, REMINDER_SOUND_IDS } from "./constants";
-import { validateCustomFieldDefinitions, type CustomFieldDef } from "./custom-fields";
+import { normalizeCustomFieldDefs, validateCustomFieldDefinitions, type CustomFieldDef } from "./custom-fields";
 import { DEFAULT_MCP_SETTINGS, mergeMcpSettings, validateMcpSettings, type McpSettings } from "./mcp-settings";
 import type { AiFeatureId } from "./ai";
 import {
@@ -8,6 +8,8 @@ import {
     mergeTaskCreationSettings,
     validateTaskCreationSettings,
     type TaskCreationSettings,
+    type TaskCreatePreset,
+    type TaskCreateTargetMemory,
 } from "./task-creation";
 
 export { DEFAULT_MCP_SETTINGS } from "./mcp-settings";
@@ -189,36 +191,179 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function validateExactKeys(value: unknown, expected: readonly string[], label: string): string | null {
-    if (!isRecord(value)) return `${label} must be an object`;
-    const actual = Object.keys(value).sort();
-    const wanted = [...expected].sort();
-    if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-        return `${label} must use the current settings structure`;
-    }
-    return null;
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
 }
 
-export function validateStoredSettings(value: unknown): string | null {
-    const topLevelError = validateExactKeys(value, Object.keys(DEFAULT_SETTINGS), "settings");
-    if (topLevelError) return topLevelError;
-    const settings = value as unknown as PluginSettings;
-    for (const [nested, expected, label] of [
-        [settings.priorityEngine, Object.keys(DEFAULT_PRIORITY_ENGINE), "priorityEngine"],
-        [settings.reminderSettings, Object.keys(DEFAULT_REMINDER_SETTINGS), "reminderSettings"],
-        [settings.mcpSettings, Object.keys(DEFAULT_MCP_SETTINGS), "mcpSettings"],
-        [settings.taskCreationSettings, Object.keys(DEFAULT_TASK_CREATION_SETTINGS), "taskCreationSettings"],
-        [settings.aiSettings, ["prompts"], "aiSettings"],
-        [settings.aiSettings?.prompts, Object.keys(DEFAULT_AI_SETTINGS.prompts), "aiSettings.prompts"],
-    ] as const) {
-        const error = validateExactKeys(nested, expected, label);
-        if (error) return error;
+function isInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value);
+}
+
+function normalizePriorityEngine(raw: unknown): PriorityEngineSettings {
+    if (!isRecord(raw)) return { ...DEFAULT_PRIORITY_ENGINE };
+    const result = { ...DEFAULT_PRIORITY_ENGINE };
+    const weights = [raw.dueWeight, raw.startWeight, raw.importanceWeight];
+    if (weights.every(isFiniteNumber) && Math.abs(weights.reduce((sum, value) => sum + value, 0) - 1) <= 0.01) {
+        result.dueWeight = weights[0];
+        result.startWeight = weights[1];
+        result.importanceWeight = weights[2];
     }
-    try {
-        return validateSettings(settings);
-    } catch (error: unknown) {
-        return error instanceof Error ? error.message : String(error);
+    const finiteKeys = [
+        "overdueBase",
+        "noDueScore",
+        "overdueGrowth",
+        "overdueCap",
+        "minStartScore",
+        "priorityOffsetCritical",
+        "priorityOffsetHigh",
+        "priorityOffsetMedium",
+        "priorityOffsetLow",
+        "priorityOffsetNone",
+    ] as const;
+    for (const key of finiteKeys) if (isFiniteNumber(raw[key])) result[key] = raw[key];
+    if (isFiniteNumber(raw.dueDecayTau) && raw.dueDecayTau >= 1 && raw.dueDecayTau <= 30)
+        result.dueDecayTau = raw.dueDecayTau;
+    if (isFiniteNumber(raw.startHorizon) && raw.startHorizon >= 1 && raw.startHorizon <= 60)
+        result.startHorizon = raw.startHorizon;
+    if (isFiniteNumber(raw.effortScale) && raw.effortScale >= 0 && raw.effortScale <= 0.5)
+        result.effortScale = raw.effortScale;
+    if (isInteger(raw.startPreviewDays) && raw.startPreviewDays >= 0 && raw.startPreviewDays <= 14)
+        result.startPreviewDays = raw.startPreviewDays;
+    return result;
+}
+
+function normalizeReminderSettings(raw: unknown): ReminderSettings {
+    if (!isRecord(raw))
+        return { ...DEFAULT_REMINDER_SETTINGS, defaultOffsets: [...DEFAULT_REMINDER_SETTINGS.defaultOffsets] };
+    const result = { ...DEFAULT_REMINDER_SETTINGS, defaultOffsets: [...DEFAULT_REMINDER_SETTINGS.defaultOffsets] };
+    if (typeof raw.enabled === "boolean") result.enabled = raw.enabled;
+    if (typeof raw.soundEnabled === "boolean") result.soundEnabled = raw.soundEnabled;
+    if (typeof raw.systemNotificationEnabled === "boolean")
+        result.systemNotificationEnabled = raw.systemNotificationEnabled;
+    if ((REMINDER_SOUND_IDS as readonly unknown[]).includes(raw.dueSound))
+        result.dueSound = raw.dueSound as ReminderSoundId;
+    if ((REMINDER_SOUND_IDS as readonly unknown[]).includes(raw.reviewSound))
+        result.reviewSound = raw.reviewSound as ReminderSoundId;
+    if (
+        Array.isArray(raw.defaultOffsets) &&
+        raw.defaultOffsets.length <= 10 &&
+        raw.defaultOffsets.every((value) => Number.isInteger(value) && value >= 1 && value <= 20160) &&
+        new Set(raw.defaultOffsets).size === raw.defaultOffsets.length
+    ) {
+        result.defaultOffsets = [...raw.defaultOffsets] as number[];
     }
+    return result;
+}
+
+function normalizeTaskCreationSettings(raw: unknown, legacyMcp: unknown): TaskCreationSettings {
+    const source = isRecord(raw) ? raw : {};
+    const legacy = isRecord(legacyMcp) ? legacyMcp : {};
+    const recentTargets = Array.isArray(source.recentTargets)
+        ? source.recentTargets
+              .filter(
+                  (target): target is TaskCreateTargetMemory =>
+                      validateTaskCreationSettings({ recentTargets: [target as TaskCreateTargetMemory] }) === null,
+              )
+              .slice(0, 3)
+              .map((target) => ({ ...target }))
+        : [];
+    const seenPresetIds = new Set<string>();
+    const presets = Array.isArray(source.presets)
+        ? source.presets
+              .filter((preset): preset is TaskCreatePreset => {
+                  if (validateTaskCreationSettings({ presets: [preset as TaskCreatePreset] }) !== null) return false;
+                  if (seenPresetIds.has(preset.id)) return false;
+                  seenPresetIds.add(preset.id);
+                  return true;
+              })
+              .slice(0, 12)
+              .map((preset) => ({ ...preset, target: { ...preset.target } }))
+        : [];
+    const defaultCreateTarget =
+        source.defaultCreateTarget === "daily_note" || source.defaultCreateTarget === "inbox"
+            ? source.defaultCreateTarget
+            : legacy.defaultCreateTarget === "daily_note"
+              ? "daily_note"
+              : DEFAULT_TASK_CREATION_SETTINGS.defaultCreateTarget;
+    const inboxDocumentId =
+        typeof source.inboxDocumentId === "string"
+            ? source.inboxDocumentId
+            : typeof legacy.inboxDocumentId === "string"
+              ? legacy.inboxDocumentId
+              : "";
+    const dailyNoteNotebookId =
+        typeof source.dailyNoteNotebookId === "string"
+            ? source.dailyNoteNotebookId
+            : typeof legacy.dailyNoteNotebookId === "string"
+              ? legacy.dailyNoteNotebookId
+              : "";
+    return mergeTaskCreationSettings(DEFAULT_TASK_CREATION_SETTINGS, {
+        defaultCreateTarget,
+        inboxDocumentId,
+        dailyNoteNotebookId,
+        recentTargets,
+        presets,
+    });
+}
+
+function normalizeAiSettings(raw: unknown): AiSettings {
+    const prompts = { ...DEFAULT_AI_SETTINGS.prompts };
+    const source = isRecord(raw) && isRecord(raw.prompts) ? raw.prompts : {};
+    for (const feature of ["extractTasks", "decomposeTask", "planMyDay", "review"] as const) {
+        if (typeof source[feature] === "string" && source[feature].length <= 12000) prompts[feature] = source[feature];
+    }
+    return { prompts };
+}
+
+export function normalizeSettings(raw: unknown): PluginSettings {
+    if (!isRecord(raw)) return mergeSettings(DEFAULT_SETTINGS, {});
+    const normalized: PluginSettings = {
+        defaultImportance:
+            isInteger(raw.defaultImportance) && raw.defaultImportance >= 1 && raw.defaultImportance <= 7
+                ? raw.defaultImportance
+                : DEFAULT_SETTINGS.defaultImportance,
+        defaultEffort:
+            isInteger(raw.defaultEffort) && raw.defaultEffort >= 1 && raw.defaultEffort <= 7
+                ? raw.defaultEffort
+                : DEFAULT_SETTINGS.defaultEffort,
+        semanticDateParsingEnabled:
+            typeof raw.semanticDateParsingEnabled === "boolean"
+                ? raw.semanticDateParsingEnabled
+                : DEFAULT_SETTINGS.semanticDateParsingEnabled,
+        priorityEngine: normalizePriorityEngine(raw.priorityEngine),
+        myDayResetHour:
+            isInteger(raw.myDayResetHour) && raw.myDayResetHour >= 0 && raw.myDayResetHour <= 23
+                ? raw.myDayResetHour
+                : DEFAULT_SETTINGS.myDayResetHour,
+        myDayDefaultViewMode:
+            raw.myDayDefaultViewMode === "timeline" || raw.myDayDefaultViewMode === "list"
+                ? raw.myDayDefaultViewMode
+                : DEFAULT_SETTINGS.myDayDefaultViewMode,
+        myDayDefaultDuration:
+            isInteger(raw.myDayDefaultDuration) && raw.myDayDefaultDuration >= 15 && raw.myDayDefaultDuration <= 480
+                ? raw.myDayDefaultDuration
+                : DEFAULT_SETTINGS.myDayDefaultDuration,
+        lastReviewAt:
+            typeof raw.lastReviewAt === "string" &&
+            (raw.lastReviewAt === "" || !Number.isNaN(Date.parse(raw.lastReviewAt)))
+                ? raw.lastReviewAt
+                : DEFAULT_SETTINGS.lastReviewAt,
+        customFields: normalizeCustomFieldDefs(raw.customFields),
+        reminderSettings: normalizeReminderSettings(raw.reminderSettings),
+        mcpSettings: mergeMcpSettings(DEFAULT_MCP_SETTINGS, {
+            enabled:
+                isRecord(raw.mcpSettings) && typeof raw.mcpSettings.enabled === "boolean"
+                    ? raw.mcpSettings.enabled
+                    : undefined,
+            allowWrite:
+                isRecord(raw.mcpSettings) && typeof raw.mcpSettings.allowWrite === "boolean"
+                    ? raw.mcpSettings.allowWrite
+                    : undefined,
+        }),
+        taskCreationSettings: normalizeTaskCreationSettings(raw.taskCreationSettings, raw.mcpSettings),
+        aiSettings: normalizeAiSettings(raw.aiSettings),
+    };
+    return normalized;
 }
 
 export function validateSettings(settings: Partial<PluginSettings>): string | null {
