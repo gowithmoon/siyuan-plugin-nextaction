@@ -90,6 +90,7 @@ try {
     await settle();
     checks.push(text().includes("No reminders"));
 
+    // Regression: 非法 reminder 值此前只能显示错误，无法清理并恢复全局继承。
     const invalidTask = { ...task, reminder: "not-json" };
     openReminderSettingsDialog(invalidTask, bridge, i18n);
     await settle();

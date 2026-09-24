@@ -176,6 +176,7 @@ void (async () => {
 });
 
 test("任务详情显示提醒继承、自定义和任务级禁用状态", async () => {
+    // Regression: 任务详情此前无法保护全局继承、自定义和任务级禁用状态的显示映射。
     const result = await runSvelteBrowserTest({
         fixtureName: "task-detail-reminder-status",
         virtualTimeBudget: 3_000,
