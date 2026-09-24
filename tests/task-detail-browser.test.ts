@@ -174,3 +174,94 @@ void (async () => {
         },
     );
 });
+
+test("任务详情显示提醒继承、自定义和任务级禁用状态", async () => {
+    const result = await runSvelteBrowserTest({
+        fixtureName: "task-detail-reminder-status",
+        virtualTimeBudget: 3_000,
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/TaskDetail.svelte").replace(/\\/g, "/");
+            const taskStorePath = resolve("src/frontend/stores/task-store.ts").replace(/\\/g, "/");
+            const settingsPath = resolve("src/shared/settings.ts").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                [
+                    "export class Dialog {}",
+                    "export class Menu {}",
+                    "export function confirm() {}",
+                    "export function openTab() {}",
+                    "export function showMessage() {}",
+                ].join("\n"),
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
+import TaskDetail from ${JSON.stringify(componentPath)};
+import { taskStore } from ${JSON.stringify(taskStorePath)};
+import { DEFAULT_SETTINGS } from ${JSON.stringify(settingsPath)};
+
+let task = $state({
+    blockId: "20260901090000-remindr", identificationSource: "native", contentBlockId: "20260901090000-remindr",
+    attrHostId: "20260901090000-remindr", parentId: "", status: "todo", priority: "none",
+    importance: 4, effort: 4, due: "2026-09-09", start: "", context: "", taskType: "1", order: 0, childIds: [],
+    title: "Reminder status", depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "",
+    sort: 0, completed: "", note: "", outcome: "", dod: "", actionKind: "action", created: "",
+    tags: "", blocked: false, blockedReason: "", reviewInterval: 0, reviewDate: "", reminder: "",
+    customFields: {},
+});
+taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
+const i18n = new Proxy({
+    reminder: "Reminders", reminderInherited: "Inherited default reminders", reminderConfigured: "Custom reminders",
+    reminderDisabled: "Reminders disabled", notConfigured: "Not configured",
+}, { get: (target, key) => target[key] || String(key) });
+const bridge = {
+    getTask: async () => task,
+    updateTask: async (_blockId, attrs) => ({ ...task, reminder: attrs["na-reminder"] }),
+    removeTask: async () => {},
+};
+window.setReminderValue = (reminder) => { task = { ...task, reminder }; };
+window.setGlobalDefault = (enabled) => taskStore.applySettingsUpdate({
+    ...DEFAULT_SETTINGS,
+    reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, useGlobalDefaultReminders: enabled },
+});
+</script>
+<TaskDetail bind:task {bridge} {i18n} showJumpToBlock={false} />`,
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import { mount } from "svelte";
+import Harness from "./Harness.svelte";
+mount(Harness, { target: document.querySelector("#app") });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const status = () => document.querySelector(".na-task-detail__setting-action").textContent.trim();
+const finish = (value) => window.__NA_BROWSER_RESULT__(value);
+void (async () => {
+    await wait(80);
+    const labels = [status()];
+    window.setGlobalDefault(true);
+    await wait(20);
+    labels.push(status());
+    window.setReminderValue(JSON.stringify([{ type: "relative", minutes: 30 }]));
+    await wait(20);
+    labels.push(status());
+    window.setReminderValue("[]");
+    await wait(20);
+    labels.push(status());
+    window.setReminderValue("");
+    window.setGlobalDefault(false);
+    await wait(20);
+    labels.push(status());
+    finish(labels);
+})().catch((error) => finish({ error: String(error?.stack || error) }));`,
+            );
+        },
+    });
+
+    assert.deepEqual(result, [
+        "Not configured",
+        "Inherited default reminders",
+        "Custom reminders",
+        "Reminders disabled",
+        "Not configured",
+    ]);
+});

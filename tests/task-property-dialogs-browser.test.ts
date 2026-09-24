@@ -89,6 +89,21 @@ try {
     pending.resolve({ ...task, reminder: "" });
     await settle();
     checks.push(text().includes("No reminders"));
+
+    const invalidTask = { ...task, reminder: "not-json" };
+    openReminderSettingsDialog(invalidTask, bridge, i18n);
+    await settle();
+    const restoreInvalid = modeButton("Restore inherited reminders");
+    checks.push(!!restoreInvalid);
+    if (restoreInvalid) {
+        restoreInvalid.click();
+        await settle();
+        checks.push(calls === 8 && writes.at(-1)["na-reminder"] === "");
+        pending.resolve({ ...invalidTask, reminder: "" });
+        await settle();
+    } else {
+        checks.push(false);
+    }
     window.__NA_BROWSER_RESULT__({ checks });
 } catch (error) { window.__NA_BROWSER_RESULT__({ checks, error: String(error) }); }
 })();
@@ -96,5 +111,5 @@ try {
         },
     });
     assert.equal(result.error, undefined);
-    assert.deepEqual(result.checks, Array(12).fill(true), JSON.stringify(result));
+    assert.deepEqual(result.checks, Array(14).fill(true), JSON.stringify(result));
 });

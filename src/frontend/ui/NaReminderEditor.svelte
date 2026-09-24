@@ -142,7 +142,7 @@
             </div>
         {/if}
         <div class="na-reminder-editor__mode-actions">
-            {#if reminderState === "disabled"}
+            {#if reminderState === "disabled" || reminderState === "invalid"}
                 <button
                     type="button"
                     class="b3-button b3-button--text"

@@ -36,7 +36,7 @@ export interface TaskCacheEntry {
     blockedReason: TaskBlockedReason;
     reviewInterval: number; // 0 = 不回顾
     reviewDate: string; // 空字符串 = 无，YYYY-MM-DD
-    reminder: string; // na-reminder 原始值，空字符串 = 使用全局默认，"[]" = 禁用
+    reminder: string; // na-reminder 原始值，空字符串 = 继承全局提醒设置（启用默认提醒时使用全局默认），"[]" = 禁用
     customFields: Record<string, string>; // 自定义字段值 {key: value}
     /** Non-fatal write warning returned after the authoritative state is stored. */
     _warning?: "sequentialConflict" | "projectReopened";
