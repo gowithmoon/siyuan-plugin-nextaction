@@ -217,7 +217,7 @@ const i18n = new Proxy({
 }, { get: (target, key) => target[key] || String(key) });
 const bridge = {
     getTask: async () => task,
-    updateTask: async (_blockId, attrs) => ({ ...task, reminder: attrs["na-reminder"] }),
+    updateTask: async (_blockId, attrs) => ({ ...task, reminder: attrs["custom-na-reminder"] }),
     removeTask: async () => {},
 };
 window.setReminderValue = (reminder) => { task = { ...task, reminder }; };

@@ -1,5 +1,6 @@
 import { confirm, Dialog } from "siyuan";
 import { get } from "svelte/store";
+import { ATTR_REMINDER } from "../../shared/constants";
 import type { I18nStrings } from "../../shared/i18n";
 import type { RepeatRuleV2 } from "../../shared/repeat";
 import type { TaskCacheEntry } from "../../shared/types";
@@ -102,7 +103,7 @@ export function openReminderSettingsDialog(
         component?.patchProps({ saving: true, error: "" });
         try {
             const updated = await bridge.updateTask(task.blockId, {
-                "na-reminder": serializeReminderItems(currentItems),
+                [ATTR_REMINDER]: serializeReminderItems(currentItems),
             });
             currentItems = parseReminderItems(updated.reminder);
             currentState = getReminderState(updated.reminder);
@@ -128,7 +129,9 @@ export function openReminderSettingsDialog(
         currentItems = [];
         component?.patchProps({ saving: true, error: "" });
         try {
-            const updated = await bridge.updateTask(task.blockId, { "na-reminder": mode === "disabled" ? "[]" : "" });
+            const updated = await bridge.updateTask(task.blockId, {
+                [ATTR_REMINDER]: mode === "disabled" ? "[]" : "",
+            });
             currentState = getReminderState(updated.reminder);
             currentItems = parseReminderItems(updated.reminder);
             component?.patchProps({ items: currentItems, due: updated.due, reminderState: currentState });

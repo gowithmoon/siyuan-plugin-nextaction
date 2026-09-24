@@ -80,12 +80,12 @@ try {
     const modeButton = (label) => Array.from(document.querySelectorAll("button")).find((button) => button.textContent.includes(label));
     modeButton("Disable reminders").click();
     await settle();
-    checks.push(calls === 6 && writes.at(-1)["na-reminder"] === "[]");
+    checks.push(calls === 6 && writes.at(-1)["custom-na-reminder"] === "[]");
     pending.resolve({ ...task, reminder: "[]" });
     await settle();
     modeButton("Restore inherited reminders").click();
     await settle();
-    checks.push(calls === 7 && writes.at(-1)["na-reminder"] === "");
+    checks.push(calls === 7 && writes.at(-1)["custom-na-reminder"] === "");
     pending.resolve({ ...task, reminder: "" });
     await settle();
     checks.push(text().includes("No reminders"));
@@ -99,7 +99,7 @@ try {
     if (restoreInvalid) {
         restoreInvalid.click();
         await settle();
-        checks.push(calls === 8 && writes.at(-1)["na-reminder"] === "");
+        checks.push(calls === 8 && writes.at(-1)["custom-na-reminder"] === "");
         pending.resolve({ ...invalidTask, reminder: "" });
         await settle();
     } else {
