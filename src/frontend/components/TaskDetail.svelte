@@ -22,7 +22,7 @@
     import { formatRpcError, notifyError, notifyInfo } from "../notify";
     import { jumpToBlock as jump, taskWriteWarningMessage } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
-    import { parseReminderItems } from "../utils/reminder-utils";
+    import { getReminderState } from "../utils/reminder-utils";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
     import { openReminderSettingsDialog, openRepeatRuleDialog } from "../dialogs/task-property-dialogs";
     import { isTaskDateRangeValid, taskDetailDraftKey, type TaskDetailDraft } from "../utils/task-detail-draft";
@@ -168,7 +168,18 @@
         ),
     );
     let isInMyDay = $derived(!!$taskStore.myDayState?.tasks.some((entry) => entry.blockId === task.blockId));
-    let hasReminders = $derived(parseReminderItems(task.reminder).length > 0);
+    let reminderState = $derived(getReminderState(task.reminder));
+    let reminderStatusLabel = $derived(
+        reminderState === "custom"
+            ? i18n?.reminderConfigured || "Custom reminders"
+            : reminderState === "disabled"
+              ? i18n?.reminderDisabled || "Reminders disabled"
+              : reminderState === "inherit" &&
+                  !!task.due &&
+                  $taskStore.settings?.reminderSettings?.useGlobalDefaultReminders
+                ? i18n?.reminderInherited || "Inherited default reminders"
+                : i18n?.notConfigured || "Not configured",
+    );
     let repeatRuntimeState = $derived(parseRepeatState(task.repeatState));
     let repeatStatus = $derived(repeatRuntimeState?.status || (task.repeat ? "active" : ""));
     let dateError = $derived(getDateError(start, due));
@@ -901,7 +912,7 @@
                 class="b3-button b3-button--text na-task-detail__setting-action"
                 onclick={openReminders}
             >
-                {hasReminders ? i18n?.reminderConfigured || "Configured" : i18n?.notConfigured || "Not configured"}
+                {reminderStatusLabel}
             </button>
         </NaPropertyRow>
         <NaPropertyRow

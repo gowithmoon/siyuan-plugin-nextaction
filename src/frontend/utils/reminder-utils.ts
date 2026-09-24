@@ -1,4 +1,7 @@
 import type { ReminderItem, ReminderRelative, ReminderAbsolute } from "../../shared/types";
+import type { ReminderSettings } from "../../shared/settings";
+
+export type ReminderState = "inherit" | "custom" | "disabled" | "invalid";
 
 /**
  * Parse the raw `custom-na-reminder` attribute value into ReminderItem[].
@@ -38,6 +41,35 @@ export function parseReminderItems(raw: string): ReminderItem[] {
 export function serializeReminderItems(items: ReminderItem[]): string {
     if (items.length === 0) return "";
     return JSON.stringify(items);
+}
+
+export function getReminderState(raw = ""): ReminderState {
+    const trimmed = raw.trim();
+    if (!trimmed) return "inherit";
+    if (trimmed === "[]") return "disabled";
+    try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && parsed.length === 0) return "disabled";
+    } catch {
+        return "invalid";
+    }
+    const items = parseReminderItems(trimmed);
+    return items.length > 0 ? "custom" : "invalid";
+}
+
+/** Resolve task reminders, applying global defaults only to an actually empty attribute. */
+export function resolveReminderItems(
+    raw: string,
+    settings: ReminderSettings | undefined,
+    hasDue: boolean,
+): ReminderItem[] {
+    const state = getReminderState(raw);
+    const items = parseReminderItems(raw);
+    if (state === "custom") return items;
+    if (state === "inherit" && settings?.useGlobalDefaultReminders && hasDue && settings.defaultOffsets.length > 0) {
+        return settings.defaultOffsets.map((minutes): ReminderRelative => ({ type: "relative", minutes }));
+    }
+    return [];
 }
 
 /** Format a ReminderItem into a human-readable description string. */

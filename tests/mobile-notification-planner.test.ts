@@ -8,6 +8,7 @@ import {
     diffPlanSnapshot,
     isSameTriggerTimes,
 } from "../src/frontend/utils/mobile-notification-planner.ts";
+import { DEFAULT_REMINDER_SETTINGS } from "../src/shared/settings.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -105,6 +106,20 @@ test("done、someday 和没有提醒来源的任务不生成触发点", () => {
         0,
     );
     assert.equal(calculateNotificationTriggers(taskFactory("empty"), now, DAY_MS).length, 0);
+});
+
+test("全局默认提醒为有截止时间的空提醒任务生成 relative trigger", () => {
+    const settings = { ...DEFAULT_REMINDER_SETTINGS, useGlobalDefaultReminders: true };
+    const now = localDateMs("2030-01-01", 8);
+    const task = taskFactory("fallback", { due: "2030-01-02T12:00", reminder: "" });
+    const triggers = calculateNotificationTriggers(task, now, 2 * DAY_MS, settings);
+    assert.ok(triggers.some((trigger) => trigger.kind === "relative" && trigger.minutesBefore === 60));
+});
+
+test("明确禁用的空数组不使用全局默认提醒", () => {
+    const settings = { ...DEFAULT_REMINDER_SETTINGS, useGlobalDefaultReminders: true };
+    const task = taskFactory("disabled", { due: "2030-01-02T12:00", reminder: "[]" });
+    assert.equal(calculateNotificationTriggers(task, localDateMs("2030-01-01", 8), 2 * DAY_MS, settings).length, 0);
 });
 
 test("同一任务的多个提醒项全部保留并按触发时间排序", () => {

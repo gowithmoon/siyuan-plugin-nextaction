@@ -6,7 +6,12 @@ import type { TaskCacheEntry } from "../../shared/types";
 import type { KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
 import { formatRpcError } from "../notify";
-import { parseReminderItems, serializeReminderItems } from "../utils/reminder-utils";
+import {
+    getReminderState,
+    parseReminderItems,
+    serializeReminderItems,
+    type ReminderState,
+} from "../utils/reminder-utils";
 import NaReminderEditor from "../ui/NaReminderEditor.svelte";
 import NaRepeatRuleEditor from "../ui/NaRepeatRuleEditor.svelte";
 import { mountSvelteComponent, type SvelteComponentMount } from "../svelte-mount";
@@ -67,6 +72,7 @@ export function openReminderSettingsDialog(
     let mounted: SvelteComponentMount<InstanceType<typeof NaReminderEditor>> | null = null;
     let unbindClose = () => {};
     let currentItems = parseReminderItems(task.reminder);
+    let currentState: ReminderState = getReminderState(task.reminder);
     const dialog = new Dialog({
         title: "",
         content: '<div class="nextaction na-property-dialog-target" data-na-dialog-target></div>',
@@ -90,18 +96,51 @@ export function openReminderSettingsDialog(
     const handleChange = async (items: typeof currentItems) => {
         const component = mounted?.instance;
         const previousItems = currentItems;
+        const previousState = currentState;
         currentItems = items;
+        currentState = items.length > 0 ? "custom" : "inherit";
         component?.patchProps({ saving: true, error: "" });
         try {
             const updated = await bridge.updateTask(task.blockId, {
                 "na-reminder": serializeReminderItems(currentItems),
             });
             currentItems = parseReminderItems(updated.reminder);
-            component?.patchProps({ items: currentItems, due: updated.due });
+            currentState = getReminderState(updated.reminder);
+            component?.patchProps({ items: currentItems, due: updated.due, reminderState: currentState });
             callbacks.onSave?.(updated);
         } catch (error) {
             currentItems = previousItems;
-            component?.patchProps({ items: previousItems, error: formatRpcError(error, i18n) });
+            currentState = previousState;
+            component?.patchProps({
+                items: previousItems,
+                reminderState: previousState,
+                error: formatRpcError(error, i18n),
+            });
+        } finally {
+            component?.patchProps({ saving: false });
+        }
+    };
+    const handleModeChange = async (mode: ReminderState) => {
+        const component = mounted?.instance;
+        const previousState = currentState;
+        const previousItems = currentItems;
+        currentState = mode;
+        currentItems = [];
+        component?.patchProps({ saving: true, error: "" });
+        try {
+            const updated = await bridge.updateTask(task.blockId, { "na-reminder": mode === "disabled" ? "[]" : "" });
+            currentState = getReminderState(updated.reminder);
+            currentItems = parseReminderItems(updated.reminder);
+            component?.patchProps({ items: currentItems, due: updated.due, reminderState: currentState });
+            callbacks.onSave?.(updated);
+        } catch (error) {
+            currentState = previousState;
+            currentItems = previousItems;
+            component?.patchProps({
+                items: previousItems,
+                reminderState: previousState,
+                error: formatRpcError(error, i18n),
+            });
         } finally {
             component?.patchProps({ saving: false });
         }
@@ -110,11 +149,14 @@ export function openReminderSettingsDialog(
         target,
         props: {
             items: currentItems,
+            reminderState: currentState,
+            globalDefaultEnabled: get(taskStore).settings.reminderSettings.useGlobalDefaultReminders,
             due: task.due,
             defaultOffsets: get(taskStore).settings.reminderSettings.defaultOffsets,
             i18n,
             onClose: close,
             onChange: handleChange,
+            onModeChange: handleModeChange,
         },
     }) as SvelteComponentMount<InstanceType<typeof NaReminderEditor>>;
 }

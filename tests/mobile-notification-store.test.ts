@@ -361,6 +361,20 @@ test("修改全局提前量重新校准任务集合，无关设置不触碰已�
     assert.equal(harness.sent.length, 2);
 });
 
+test("全局默认提醒开关变化时重建移动端任务通知", async () => {
+    const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const harness = createHarness();
+    await initMobileNotificationStore(harness.plugin);
+    const off = { ...get(taskStore).settings.reminderSettings, useGlobalDefaultReminders: false };
+    const on = { ...off, useGlobalDefaultReminders: true };
+    const task = taskFactory("inherited-mobile", { due: "2030-01-03T12:00", reminder: "" });
+
+    await applyMobileNotificationSettings(off, on, [task], NOW);
+    assert.ok(harness.sent.some(({ options }) => String(options.body).includes("Due in 1 hour")));
+    await applyMobileNotificationSettings(on, off, [task], NOW);
+    assert.ok(harness.cancelled.length > 0);
+});
+
 test("浏览器保存系统通知设置不影响平台通知或页面内提醒文件", async () => {
     // Regression: browser settings must not invoke the native notification API.
     const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");

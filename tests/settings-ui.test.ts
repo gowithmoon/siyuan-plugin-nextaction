@@ -151,6 +151,10 @@ test("系统通知开关在音效之后可见，浏览器和关闭提醒时禁�
     assert.match(general, /i18n\.reminderSystemNotificationUnsupported/);
     assert.match(panel, /bind:reminderSystemNotificationEnabled/);
     assert.match(panel, /systemNotificationEnabled: reminderSystemNotificationEnabled/);
+    assert.match(panel, /reminderUseGlobalDefault = \$state\(DEFAULT_REMINDER_SETTINGS\.useGlobalDefaultReminders\)/);
+    assert.match(panel, /useGlobalDefaultReminders: reminderUseGlobalDefault/);
+    assert.match(general, /id="setting-reminder-use-global-default"/);
+    assert.match(general, /bind:checked=\{reminderUseGlobalDefault\}/);
     assert.match(panel, /reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS\.systemNotificationEnabled/);
     assert.match(panel, /if \(!result\) return;[\s\S]*controller\.refreshAfterSave/);
     assert.match(panel, /applyMobileNotificationSettings\([\s\S]*get\(taskStore\)\.allTasks/);

@@ -12,6 +12,7 @@ import {
     dismissReminder,
     initReminderStore,
     notificationQueue,
+    rebuildReminderQueue,
     visibleNotifications,
 } from "../src/frontend/stores/reminder-store.ts";
 import {
@@ -20,6 +21,63 @@ import {
     initMobileNotificationStore,
     rebuildAllMobileNotifications,
 } from "../src/frontend/stores/mobile-notification-store.ts";
+
+test("空 reminder 在全局默认开启后进入桌面队列，关闭时移除且保留已读", (context) => {
+    context.mock.timers.enable({ apis: ["Date"], now: new Date(2030, 0, 1, 8, 57).getTime() });
+    const task = taskFactory("inherited-desktop", { due: "2030-01-02T09:30", reminder: "" });
+    const secondTask = taskFactory("inherited-desktop-switch", { due: "2030-01-02T09:30", reminder: "" });
+    taskStore.applySettingsUpdate({
+        ...DEFAULT_SETTINGS,
+        reminderSettings: {
+            ...DEFAULT_SETTINGS.reminderSettings,
+            enabled: true,
+            soundEnabled: false,
+            defaultOffsets: [1500],
+            useGlobalDefaultReminders: true,
+        },
+    });
+    taskStore.applyUpdate(task);
+    taskStore.applyUpdate(secondTask);
+    rebuildReminderQueue();
+    assert.ok(get(notificationQueue).some((entry) => entry.blockId === task.blockId && entry.minutesBefore === 1500));
+    const key = buildDedupKey(task.blockId, "2030-01-02", 1500, "due");
+    dismissReminder(key);
+    taskStore.applySettingsUpdate({
+        ...DEFAULT_SETTINGS,
+        reminderSettings: {
+            ...DEFAULT_SETTINGS.reminderSettings,
+            enabled: true,
+            soundEnabled: false,
+            defaultOffsets: [1500],
+            useGlobalDefaultReminders: false,
+        },
+    });
+    rebuildReminderQueue();
+    assert.equal(
+        get(notificationQueue).some((entry) => entry.blockId === secondTask.blockId),
+        false,
+    );
+    taskStore.applySettingsUpdate({
+        ...DEFAULT_SETTINGS,
+        reminderSettings: {
+            ...DEFAULT_SETTINGS.reminderSettings,
+            enabled: true,
+            soundEnabled: false,
+            defaultOffsets: [1500],
+            useGlobalDefaultReminders: true,
+        },
+    });
+    rebuildReminderQueue();
+    assert.equal(
+        get(notificationQueue).some((entry) => entry.blockId === task.blockId),
+        false,
+    );
+    assert.ok(get(notificationQueue).some((entry) => entry.blockId === secondTask.blockId));
+    taskStore.applyRemove(task.blockId);
+    taskStore.applyRemove(secondTask.blockId);
+    notificationQueue.set([]);
+    taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
+});
 
 // Regression: 原生提前注册不能干扰 30 秒 Toast 扫描、音效选择和已读去重。
 test("原生通知共存时扫描仍每 30 秒入队，播放对应音效且重启不重复已读提醒", async (context) => {

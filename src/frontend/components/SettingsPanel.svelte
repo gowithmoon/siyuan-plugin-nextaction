@@ -2,6 +2,7 @@
     import { get } from "svelte/store";
     import { taskStore } from "../stores/task-store";
     import { applyMobileNotificationSettings } from "../stores/mobile-notification-store";
+    import { rebuildReminderQueue } from "../stores/reminder-store";
     import { onMount, tick } from "svelte";
     import { confirm } from "siyuan";
     import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
@@ -93,6 +94,7 @@
     let reminderReviewSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.reviewSound);
     let reminderSoundEnabled = $state(DEFAULT_REMINDER_SETTINGS.soundEnabled);
     let reminderSystemNotificationEnabled = $state(DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled);
+    let reminderUseGlobalDefault = $state(DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders);
     let newOffsetValue = $state(60);
     let newOffsetUnit: "minutes" | "hours" | "days" = $state("minutes");
 
@@ -160,6 +162,8 @@
         reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
         reminderSystemNotificationEnabled =
             reminder.systemNotificationEnabled ?? DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
+        reminderUseGlobalDefault =
+            reminder.useGlobalDefaultReminders ?? DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders;
         const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
         mcpEnabled = mcp.enabled;
         mcpAllowWrite = mcp.allowWrite;
@@ -314,6 +318,7 @@
                 reviewSound: reminderReviewSound,
                 soundEnabled: reminderSoundEnabled,
                 systemNotificationEnabled: reminderSystemNotificationEnabled,
+                useGlobalDefaultReminders: reminderUseGlobalDefault,
             },
             mcpSettings: {
                 enabled: mcpEnabled,
@@ -344,11 +349,19 @@
             applySettings(result);
             try {
                 await controller.refreshAfterSave(onSave, async (previous, next) => {
-                    await applyMobileNotificationSettings(
-                        previous.reminderSettings,
-                        next.reminderSettings,
-                        get(taskStore).allTasks,
-                    );
+                    const previousReminder = previous.reminderSettings;
+                    const nextReminder = next.reminderSettings;
+                    if (
+                        previousReminder.enabled !== nextReminder.enabled ||
+                        previousReminder.useGlobalDefaultReminders !== nextReminder.useGlobalDefaultReminders ||
+                        previousReminder.defaultOffsets.length !== nextReminder.defaultOffsets.length ||
+                        previousReminder.defaultOffsets.some(
+                            (offset, index) => offset !== nextReminder.defaultOffsets[index],
+                        )
+                    ) {
+                        rebuildReminderQueue();
+                    }
+                    await applyMobileNotificationSettings(previousReminder, nextReminder, get(taskStore).allTasks);
                 });
             } catch (e: unknown) {
                 console.error("[NextAction] settings post-save refresh failed:", e);
@@ -494,6 +507,7 @@
         reminderReviewSound = DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
         reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
+        reminderUseGlobalDefault = DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders;
     }
 
     function handleResetReminder() {
@@ -738,6 +752,7 @@
         reminderReviewSound,
         reminderSoundEnabled,
         reminderSystemNotificationEnabled,
+        reminderUseGlobalDefault,
         mcpEnabled,
         mcpAllowWrite,
         taskCreationDefaultCreateTarget,
@@ -857,6 +872,7 @@
                     bind:reminderReviewSound
                     bind:reminderSoundEnabled
                     bind:reminderSystemNotificationEnabled
+                    bind:reminderUseGlobalDefault
                     bind:newOffsetValue
                     bind:newOffsetUnit
                     soundIds={REMINDER_SOUND_IDS}

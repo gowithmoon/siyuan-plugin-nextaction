@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { ReminderAbsolute, ReminderItem, ReminderRelative } from "../../shared/types";
+    import type { ReminderState } from "../utils/reminder-utils";
     import { REMINDER_MAX_PER_TASK } from "../../shared/constants";
     import { formatOffset, formatReminderDescription } from "../utils/reminder-utils";
     import NaDatePicker from "./NaDatePicker.svelte";
@@ -16,8 +17,11 @@
     export let i18n: any;
     export let saving = false;
     export let error = "";
+    export let reminderState: ReminderState = "inherit";
+    export let globalDefaultEnabled = false;
 
     export let onChange: (items: ReminderItem[]) => void = () => {};
+    export let onModeChange: (mode: ReminderState) => void = () => {};
     export let onClose: () => void = () => {};
     let showAbsolute = false;
     let absoluteTime = "";
@@ -29,16 +33,31 @@
     );
     $: isFull = items.length >= REMINDER_MAX_PER_TASK;
 
-    export function patchProps(patch: { saving?: boolean; error?: string; items?: ReminderItem[]; due?: string }) {
+    export function patchProps(patch: {
+        saving?: boolean;
+        error?: string;
+        items?: ReminderItem[];
+        due?: string;
+        reminderState?: ReminderState;
+    }) {
         if (patch.saving !== undefined) saving = patch.saving;
         if (patch.error !== undefined) error = patch.error;
         if (patch.items !== undefined) items = patch.items;
         if (patch.due !== undefined) due = patch.due;
+        if (patch.reminderState !== undefined) reminderState = patch.reminderState;
     }
 
     function update(next: ReminderItem[]) {
         items = next;
+        if (next.length > 0) reminderState = "custom";
+        else reminderState = "inherit";
         onChange(next);
+    }
+
+    function setMode(mode: "inherit" | "disabled") {
+        reminderState = mode;
+        items = [];
+        onModeChange(mode);
     }
 
     function sort(itemsToSort: ReminderItem[]) {
@@ -91,6 +110,17 @@
     {/snippet}
 
     <NaPropertySection title={i18n?.reminderCurrent || i18n?.reminderPopupTitle || "Reminders"}>
+        {#if reminderState === "inherit" && globalDefaultEnabled && due}
+            <NaInlineNotice
+                message={i18n?.reminderInheritGlobal ||
+                    "Global default reminders enabled - this task will use default offsets"}
+                tone="info"
+            />
+        {:else if reminderState === "disabled"}
+            <NaInlineNotice message={i18n?.reminderDisabled || "Reminders are disabled for this task"} tone="warning" />
+        {:else if reminderState === "invalid"}
+            <NaInlineNotice message={i18n?.reminderInvalid || "This reminder value is invalid"} tone="warning" />
+        {/if}
         {#if items.length === 0}
             <div class="na-reminder-editor__empty">{i18n?.reminderEmptyList || "No reminders"}</div>
         {:else}
@@ -111,6 +141,24 @@
                 {/each}
             </div>
         {/if}
+        <div class="na-reminder-editor__mode-actions">
+            {#if reminderState === "disabled"}
+                <button
+                    type="button"
+                    class="b3-button b3-button--text"
+                    disabled={saving}
+                    onclick={() => setMode("inherit")}
+                    >{i18n?.reminderRestoreInherit || "Restore inherited reminders"}</button
+                >
+            {:else}
+                <button
+                    type="button"
+                    class="b3-button b3-button--text"
+                    disabled={saving}
+                    onclick={() => setMode("disabled")}>{i18n?.reminderDisable || "Disable reminders"}</button
+                >
+            {/if}
+        </div>
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.reminderAbsolute || "Absolute reminder"}>

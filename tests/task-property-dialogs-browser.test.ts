@@ -34,9 +34,10 @@ const text = () => document.body.textContent;
 let pending;
 let calls = 0;
 let saves = 0;
+const writes = [];
 const bridge = {
     setRepeatRule() { calls++; return new Promise((resolve, reject) => { pending = { resolve, reject }; }); },
-    updateTask() { calls++; return new Promise((resolve, reject) => { pending = { resolve, reject }; }); },
+    updateTask(_blockId, attrs) { calls++; writes.push(attrs); return new Promise((resolve, reject) => { pending = { resolve, reject }; }); },
 };
 const saveButton = () => document.querySelector(".b3-button--primary");
 (async () => {
@@ -76,6 +77,18 @@ try {
     pending.resolve({ ...task, reminder: "" });
     await settle();
     checks.push(saves === 3 && !document.querySelector(".na-reminder-editor__item") && !text().includes("保存中"));
+    const modeButton = (label) => Array.from(document.querySelectorAll("button")).find((button) => button.textContent.includes(label));
+    modeButton("Disable reminders").click();
+    await settle();
+    checks.push(calls === 6 && writes.at(-1)["na-reminder"] === "[]");
+    pending.resolve({ ...task, reminder: "[]" });
+    await settle();
+    modeButton("Restore inherited reminders").click();
+    await settle();
+    checks.push(calls === 7 && writes.at(-1)["na-reminder"] === "");
+    pending.resolve({ ...task, reminder: "" });
+    await settle();
+    checks.push(text().includes("No reminders"));
     window.__NA_BROWSER_RESULT__({ checks });
 } catch (error) { window.__NA_BROWSER_RESULT__({ checks, error: String(error) }); }
 })();
@@ -83,5 +96,5 @@ try {
         },
     });
     assert.equal(result.error, undefined);
-    assert.deepEqual(result.checks, Array(9).fill(true));
+    assert.deepEqual(result.checks, Array(12).fill(true), JSON.stringify(result));
 });

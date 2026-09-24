@@ -40,6 +40,7 @@
         reminderReviewSound: ReminderSoundId;
         reminderSoundEnabled: boolean;
         reminderSystemNotificationEnabled: boolean;
+        reminderUseGlobalDefault: boolean;
         newOffsetValue: number;
         newOffsetUnit: "minutes" | "hours" | "days";
         soundIds: readonly ReminderSoundId[];
@@ -75,6 +76,7 @@
         reminderReviewSound = $bindable(),
         reminderSoundEnabled = $bindable(),
         reminderSystemNotificationEnabled = $bindable(),
+        reminderUseGlobalDefault = $bindable(),
         newOffsetValue = $bindable(),
         newOffsetUnit = $bindable(),
         soundIds,
@@ -259,6 +261,21 @@
             description={i18n?.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}
         >
             <input id="setting-reminder-enabled" class="b3-switch" type="checkbox" bind:checked={reminderEnabled} />
+        </NaSettingRow>
+        <NaSettingRow
+            disabled={!reminderEnabled}
+            forId="setting-reminder-use-global-default"
+            title={i18n?.reminderSettingUseGlobalDefault || "Default reminders"}
+            description={i18n?.reminderSettingUseGlobalDefaultDesc ||
+                "Remind tasks with due dates but no per-task reminder using the default offsets above"}
+        >
+            <input
+                id="setting-reminder-use-global-default"
+                class="b3-switch"
+                type="checkbox"
+                bind:checked={reminderUseGlobalDefault}
+                disabled={!reminderEnabled}
+            />
         </NaSettingRow>
         <NaSettingRow
             stacked={true}

@@ -138,6 +138,7 @@ test("旧版持久化设置逐字段归一化并保留自定义字段", () => {
         normalized.reminderSettings.systemNotificationEnabled,
         DEFAULT_SETTINGS.reminderSettings.systemNotificationEnabled,
     );
+    assert.equal(normalized.reminderSettings.useGlobalDefaultReminders, false);
     assert.equal(normalized.taskCreationSettings.defaultCreateTarget, "daily_note");
     assert.equal(normalized.defaultImportance, DEFAULT_SETTINGS.defaultImportance);
     assert.equal(normalized.priorityEngine.overdueBase, 42);
@@ -145,6 +146,25 @@ test("旧版持久化设置逐字段归一化并保留自定义字段", () => {
     assert.equal(normalized.aiSettings.prompts.review, DEFAULT_SETTINGS.aiSettings.prompts.review);
     assert.equal(validateSettings(normalized), null);
     assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
+});
+
+test("旧版提醒设置缺少全局默认开关时回退为 false", () => {
+    const normalized = normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        reminderSettings: {
+            enabled: true,
+            defaultOffsets: [60],
+            dueSound: "chime",
+            reviewSound: "soft",
+            soundEnabled: true,
+            systemNotificationEnabled: false,
+        },
+    });
+    assert.equal(normalized.reminderSettings.useGlobalDefaultReminders, false);
+    assert.equal(
+        validateSettings({ reminderSettings: { useGlobalDefaultReminders: "yes" } as never }),
+        "reminderSettings.useGlobalDefaultReminders must be boolean",
+    );
 });
 
 test("设置保存链当前由面板持久化、宿主执行后处理", () => {

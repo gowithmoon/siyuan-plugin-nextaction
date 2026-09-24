@@ -163,9 +163,9 @@ async function cancelNotificationId(id: number): Promise<void> {
     }
 }
 
-function notificationContent(task: TaskCacheEntry, nowMs: number): string {
+function notificationContent(task: TaskCacheEntry, nowMs: number, reminderSettings?: ReminderSettings): string {
     return JSON.stringify(
-        calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS).map((trigger) => [
+        calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, reminderSettings).map((trigger) => [
             trigger.title,
             trigger.kind,
             buildNotificationTitle(trigger),
@@ -310,10 +310,15 @@ async function cancelBlockUnlocked(blockId: string, generation: number): Promise
     currentPlanSnapshot = new Map([...currentPlanSnapshot].filter(([id]) => id !== blockId));
 }
 
-async function scheduleTaskUnlocked(task: TaskCacheEntry, nowMs: number, generation: number): Promise<void> {
+async function scheduleTaskUnlocked(
+    task: TaskCacheEntry,
+    nowMs: number,
+    generation: number,
+    reminderSettings: ReminderSettings = get(taskStore).settings.reminderSettings,
+): Promise<void> {
     await cancelBlockUnlocked(task.blockId, generation);
     if (!isCurrentGeneration(generation)) return;
-    const triggers = calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS);
+    const triggers = calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, reminderSettings);
     const ids: number[] = [];
     const successfulTriggerTimes: number[] = [];
     for (const trigger of triggers) {
@@ -339,7 +344,7 @@ async function scheduleTaskUnlocked(task: TaskCacheEntry, nowMs: number, generat
     currentPlanSnapshot = new Map(currentPlanSnapshot);
     if (successfulTriggerTimes.length > 0) {
         currentPlanSnapshot.set(task.blockId, successfulTriggerTimes);
-        registeredContents.set(task.blockId, notificationContent(task, nowMs));
+        registeredContents.set(task.blockId, notificationContent(task, nowMs, reminderSettings));
     } else {
         currentPlanSnapshot.delete(task.blockId);
         registeredContents.delete(task.blockId);
@@ -458,23 +463,26 @@ export async function onTasksChangedV2(
 export async function rebuildAllMobileNotifications(
     tasks: readonly TaskCacheEntry[],
     nowMs = Date.now(),
+    reminderSettings?: ReminderSettings,
 ): Promise<void> {
     if (!initialized) return;
+    const effectiveReminderSettings = reminderSettings ?? get(taskStore).settings.reminderSettings;
     await withStorageLock(async (generation) => {
         if (!(await canScheduleSystemNotification()) || !isCurrentGeneration(generation)) return;
-        const next = buildPlanSnapshot(tasks, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS);
+        const next = buildPlanSnapshot(tasks, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, effectiveReminderSettings);
         const diff = diffPlanSnapshot(currentPlanSnapshot, next);
         const taskById = new Map(tasks.map((task) => [task.blockId, task]));
         diff.unchanged = diff.unchanged.filter((blockId) => {
             const task = taskById.get(blockId)!;
-            if (registeredContents.get(blockId) === notificationContent(task, nowMs)) return true;
+            if (registeredContents.get(blockId) === notificationContent(task, nowMs, effectiveReminderSettings))
+                return true;
             diff.toRebuild.push(blockId);
             return false;
         });
         for (const blockId of diff.toCancel) await cancelBlockUnlocked(blockId, generation);
         for (const blockId of diff.toRebuild) {
             const task = taskById.get(blockId);
-            if (task) await scheduleTaskUnlocked(task, nowMs, generation);
+            if (task) await scheduleTaskUnlocked(task, nowMs, generation, effectiveReminderSettings);
         }
         if (!isCurrentGeneration(generation)) return;
         const registeredPlan = new Map<string, readonly number[]>();
@@ -510,8 +518,9 @@ export async function applyMobileNotificationSettings(
         next.systemNotificationEnabled &&
         (!previous.systemNotificationEnabled ||
             previous.defaultOffsets.length !== next.defaultOffsets.length ||
-            previous.defaultOffsets.some((offset, index) => offset !== next.defaultOffsets[index]))
+            previous.defaultOffsets.some((offset, index) => offset !== next.defaultOffsets[index]) ||
+            previous.useGlobalDefaultReminders !== next.useGlobalDefaultReminders)
     ) {
-        await rebuildAllMobileNotifications(tasks, nowMs);
+        await rebuildAllMobileNotifications(tasks, nowMs, next);
     }
 }

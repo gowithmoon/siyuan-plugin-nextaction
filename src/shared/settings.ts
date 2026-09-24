@@ -54,6 +54,7 @@ export interface ReminderSettings {
     reviewSound: ReminderSoundId;
     soundEnabled: boolean;
     systemNotificationEnabled: boolean;
+    useGlobalDefaultReminders: boolean;
 }
 
 export interface AiSettings {
@@ -169,6 +170,7 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
     reviewSound: "soft",
     soundEnabled: true,
     systemNotificationEnabled: false,
+    useGlobalDefaultReminders: false,
 };
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -240,6 +242,8 @@ function normalizeReminderSettings(raw: unknown): ReminderSettings {
     if (typeof raw.soundEnabled === "boolean") result.soundEnabled = raw.soundEnabled;
     if (typeof raw.systemNotificationEnabled === "boolean")
         result.systemNotificationEnabled = raw.systemNotificationEnabled;
+    if (typeof raw.useGlobalDefaultReminders === "boolean")
+        result.useGlobalDefaultReminders = raw.useGlobalDefaultReminders;
     if ((REMINDER_SOUND_IDS as readonly unknown[]).includes(raw.dueSound))
         result.dueSound = raw.dueSound as ReminderSoundId;
     if ((REMINDER_SOUND_IDS as readonly unknown[]).includes(raw.reviewSound))
@@ -470,6 +474,9 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
         if (rs.systemNotificationEnabled !== undefined && typeof rs.systemNotificationEnabled !== "boolean") {
             return "reminderSettings.systemNotificationEnabled must be boolean";
+        }
+        if (rs.useGlobalDefaultReminders !== undefined && typeof rs.useGlobalDefaultReminders !== "boolean") {
+            return "reminderSettings.useGlobalDefaultReminders must be boolean";
         }
     }
     const mcpError = validateMcpSettings(settings.mcpSettings);

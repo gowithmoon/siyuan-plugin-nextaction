@@ -1,6 +1,7 @@
 import { REMINDER_MOBILE_PLAN_HORIZON_MS, REMINDER_REVIEW_HOUR } from "../../shared/constants";
 import type { TaskCacheEntry, ReminderAbsolute, ReminderRelative } from "../../shared/types";
-import { parseReminderItems } from "./reminder-utils";
+import type { ReminderSettings } from "../../shared/settings";
+import { resolveReminderItems } from "./reminder-utils";
 
 export interface MobileNotificationTrigger {
     readonly blockId: string;
@@ -47,11 +48,12 @@ export function calculateNotificationTriggers(
     task: TaskCacheEntry,
     nowMs: number,
     daysLimitMs: number = REMINDER_MOBILE_PLAN_HORIZON_MS,
+    reminderSettings?: ReminderSettings,
 ): MobileNotificationTrigger[] {
     if (task.status === "done" || task.status === "someday") return [];
 
     const triggers: MobileNotificationTrigger[] = [];
-    const items = parseReminderItems(task.reminder);
+    const items = resolveReminderItems(task.reminder, reminderSettings, !!task.due);
     for (const item of items) {
         if (item.type === "absolute") {
             const triggerTimeMs = new Date((item as ReminderAbsolute).time).getTime();
@@ -84,10 +86,11 @@ export function buildPlanSnapshot(
     tasks: readonly TaskCacheEntry[],
     nowMs: number,
     daysLimitMs: number = REMINDER_MOBILE_PLAN_HORIZON_MS,
+    reminderSettings?: ReminderSettings,
 ): MobilePlanSnapshot {
     const snapshot = new Map<string, readonly number[]>();
     for (const task of tasks) {
-        const triggerTimes = calculateNotificationTriggers(task, nowMs, daysLimitMs).map(
+        const triggerTimes = calculateNotificationTriggers(task, nowMs, daysLimitMs, reminderSettings).map(
             (trigger) => trigger.triggerTimeMs,
         );
         if (triggerTimes.length > 0) snapshot.set(task.blockId, triggerTimes);

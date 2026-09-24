@@ -22,7 +22,7 @@ import type {
 } from "../../shared/types";
 import type { Plugin } from "siyuan";
 import { playSound } from "../utils/audio-player";
-import { parseReminderItems } from "../utils/reminder-utils";
+import { resolveReminderItems } from "../utils/reminder-utils";
 import { isNextActionCandidate } from "../utils/filter";
 
 // ---------------------------------------------------------------------------
@@ -55,7 +55,14 @@ let scanTimer: ReturnType<typeof setInterval> | null = null;
  * Parses the raw reminder attribute into ReminderItem[].
  */
 function getEffectiveReminders(entry: TaskCacheEntry): ReminderItem[] {
-    return parseReminderItems(entry.reminder);
+    return resolveReminderItems(entry.reminder, get(taskStore).settings?.reminderSettings, !!entry.due);
+}
+
+/** Rebuild pending desktop reminders after a settings change. Dismissal history is retained. */
+export function rebuildReminderQueue(): void {
+    notificationQueue.set([]);
+    pendingReminderCount.set(0);
+    scanReminders(false);
 }
 
 /**
@@ -215,7 +222,7 @@ function hasActionableItems(summary: ReminderSummaryData): boolean {
 // Core scan
 // ---------------------------------------------------------------------------
 
-function scanReminders(): void {
+function scanReminders(playNewSound = true): void {
     const settings = get(taskStore).settings;
     const reminderSettings = settings?.reminderSettings;
     if (!reminderSettings?.enabled) return;
@@ -391,7 +398,7 @@ function scanReminders(): void {
     const undismissed = updatedQueue.filter((r) => !r.dismissed);
     pendingReminderCount.set(undismissed.length);
 
-    if (reminderSettings.soundEnabled) {
+    if (playNewSound && reminderSettings.soundEnabled) {
         const firstNew = newEntries[0];
         const soundId: ReminderSoundId =
             firstNew.type === "review" ? reminderSettings.reviewSound || "soft" : reminderSettings.dueSound || "chime";
