@@ -80,6 +80,7 @@
     let catalog = $derived($session.catalog);
     let mobileActionsOpen = $state(false);
     let mobileViewPickerOpen = $state(false);
+    let projectDetailActive = $state(false);
     let root: HTMLDivElement;
     let createOptions = $state<{ parentTask: TaskCacheEntry | null; initialActionKind: "action" | "stage" } | null>(
         null,
@@ -515,33 +516,39 @@
             : undefined}
     >
         {#if compact}
-            <div class="na-workspace__header">
-                {#if $session.canBack && !catalog}<NaIconButton
-                        symbol="iconLeft"
-                        label={i18n.back}
-                        onclick={back}
-                    />{/if}
-                <h1>{catalog ? i18n.allViews : activeViewMeta.label}</h1>
-                <NaIconButton symbol="iconAdd" label={i18n.createTask} onclick={() => openCreate()} />
-                {#if !touch}<NaIconButton symbol="iconRefresh" label={i18n.refreshTasks} onclick={handleRefresh} />{/if}
-                {#if touch}<NaIconButton
-                        symbol="iconMore"
-                        label="更多"
-                        onclick={() => (mobileActionsOpen = !mobileActionsOpen)}
-                    />{/if}
-                {#if touch && mobileActionsOpen}
-                    <div class="na-mobile-actions" role="menu">
-                        <button
-                            type="button"
-                            role="menuitem"
-                            onclick={() => {
-                                mobileActionsOpen = false;
-                                void handleRefresh();
-                            }}>{i18n.refreshTasks}</button
-                        >
-                    </div>
-                {/if}
-            </div>
+            {#if !(touch && activeView === VIEW_BY_PROJECT && projectDetailActive)}
+                <div class="na-workspace__header">
+                    {#if $session.canBack && !catalog}<NaIconButton
+                            symbol="iconLeft"
+                            label={i18n.back}
+                            onclick={back}
+                        />{/if}
+                    <h1>{catalog ? i18n.allViews : activeViewMeta.label}</h1>
+                    <NaIconButton symbol="iconAdd" label={i18n.createTask} onclick={() => openCreate()} />
+                    {#if !touch}<NaIconButton
+                            symbol="iconRefresh"
+                            label={i18n.refreshTasks}
+                            onclick={handleRefresh}
+                        />{/if}
+                    {#if touch}<NaIconButton
+                            symbol="iconMore"
+                            label="更多"
+                            onclick={() => (mobileActionsOpen = !mobileActionsOpen)}
+                        />{/if}
+                    {#if touch && mobileActionsOpen}
+                        <div class="na-mobile-actions" role="menu">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onclick={() => {
+                                    mobileActionsOpen = false;
+                                    void handleRefresh();
+                                }}>{i18n.refreshTasks}</button
+                            >
+                        </div>
+                    {/if}
+                </div>
+            {/if}
             {#if !touch}<CompactNavigation
                     {i18n}
                     {activeView}
@@ -614,6 +621,7 @@
                     selectedTaskOverride={selectedTask}
                     requestedProjectId={projectFocusId}
                     onProjectRequestApplied={() => (projectFocusId = "")}
+                    onProjectDetailChange={(active) => (projectDetailActive = active)}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}

@@ -92,13 +92,18 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  out.startsWithProjectList=!!document.querySelector('.na-project-index')&&!document.querySelector('.na-project-canvas');
  document.querySelector('.na-project-index__item').click();await pause();
  out.projectDrilldown=!!document.querySelector('.na-project-canvas')&&!document.querySelector('.na-project-index');
+ out.projectHeaderOnly=!document.querySelector('.na-workspace__header')&&!!document.querySelector('.na-project-compact-toolbar');
+ click('任务操作',document.querySelector('.na-project-compact-toolbar'));await pause();
+ const projectActions=document.querySelector('.na-page-host');
+ out.repeatedProjectViewsAbsent=![...projectActions.querySelectorAll('button')].some(button=>/层级|甘特/.test(button.textContent));
+ click('返回',projectActions);await pause();
  const mode=document.querySelector('.na-project-compact-toolbar select');
- const mobileModes=()=>[...document.querySelectorAll('.na-project-mobile-modes button')];
- out.modes=${mobile ? `['overview','hierarchy','board','plan','gantt']` : `[...mode.options].map(o=>o.value)`};
+ const chooseMode=(value)=>{mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));};
+ out.modes=[...mode.options].map(o=>o.value);
  out.modesFit=true;
- for(const value of out.modes) {${mobile ? `mobileModes()[out.modes.indexOf(value)]?.click();` : `mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
+ for(const value of out.modes) {chooseMode(value);await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
 
- ${mobile ? `mobileModes()[1]?.click();` : `mode.value='board';mode.dispatchEvent(new Event('change',{bubbles:true}));`}await pause();
+ chooseMode('board');await pause();
  out.singleBoardColumn=document.querySelectorAll('.na-project-board__column').length;
  const grouping=document.querySelector('#na-project-board-group-by');grouping.value='stage';grouping.dispatchEvent(new Event('change',{bubbles:true}));await pause();
  const pager=document.querySelector('.na-project-board__pager select');pager.value=String(pager.options.length-1);pager.dispatchEvent(new Event('change',{bubbles:true}));await pause();
@@ -130,9 +135,10 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  out.scheduleEdited=window.scheduleWrites.length===1 && window.scheduleWrites[0].start===150 && window.scheduleWrites[0].end===195;
  catalog();await pause();
  ${!mobile ? `click('项目视图',document.querySelector('.na-view-directory'));await pause();` : ""}
- out.projectModeRestored=${mobile ? `['overview','board','plan'][mobileModes().findIndex(button=>button.getAttribute('aria-checked')==='true')]` : `document.querySelector('.na-project-compact-toolbar select')?.value`};
+ out.projectModeRestored=document.querySelector('.na-project-compact-toolbar select')?.value;
  document.querySelector('.na-project-compact-toolbar button').click();await pause();
  out.backToProjectList=!!document.querySelector('.na-project-index');
+ out.workspaceHeaderRestored=!!document.querySelector('.na-workspace__header');
  click('下一步行动',nav());await pause();
  const filters=()=>[...document.querySelectorAll('.na-task-filter-bar button')].find(button=>button.textContent.includes('筛选与排序'));
  filters().click();await pause();
@@ -177,6 +183,8 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
             catalogCount: 10,
             startsWithProjectList: true,
             projectDrilldown: true,
+            projectHeaderOnly: true,
+            repeatedProjectViewsAbsent: true,
             modes: ["overview", "hierarchy", "board", "plan", "gantt"],
             modesFit: true,
             singleBoardColumn: 1,
@@ -185,6 +193,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
             myDayHasAdd: true,
             projectModeRestored: "board",
             backToProjectList: true,
+            workspaceHeaderRestored: true,
             filterCancelled: true,
             filterApplied: true,
             ...(mobile

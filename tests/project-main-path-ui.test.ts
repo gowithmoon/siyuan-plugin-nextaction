@@ -80,6 +80,23 @@ test("项目层级视图只保留缩进和任务卡片，不显示冗余上级�
     assert.doesNotMatch(hierarchy, /class="na-project-tree__parent"/);
 });
 
+test("移动端项目详情只保留标题栏视图选择并释放画布高度", () => {
+    // Regression: project detail used to stack the workspace header, project header, and a second mode switcher.
+    const app = source("../src/frontend/components/Workspace.svelte");
+    const view = source("../src/frontend/components/ProjectView.svelte");
+
+    assert.match(app, /projectDetailActive = \$state\(false\)/);
+    assert.match(app, /activeView === VIEW_BY_PROJECT && projectDetailActive/);
+    assert.match(app, /onProjectDetailChange=\{\(active\) => \(projectDetailActive = active\)\}/);
+    assert.match(view, /onProjectDetailChange\?\.\(compact && level === "project"\)/);
+    assert.match(view, /class="na-select na-project-compact-mode"/);
+    assert.doesNotMatch(view, /class="na-project-mobile-modes"/);
+    assert.doesNotMatch(view, /handleModeChange\("hierarchy"\)/);
+    assert.doesNotMatch(view, /handleModeChange\("gantt"\)/);
+    assert.match(view, /\.na-project-workspace--compact\s*\{[\s\S]*?flex:\s*1 1 auto;/);
+    assert.match(view, /\.na-project-workspace--compact \.na-project-canvas\s*\{[\s\S]*?min-height:\s*0;/);
+});
+
 test("Stage 在项目计划、Next Action 和 Review 共用的任务卡片中可见", () => {
     const card = source("../src/frontend/components/TaskCard.svelte");
     const styles = source("../src/frontend/styles/components.scss");

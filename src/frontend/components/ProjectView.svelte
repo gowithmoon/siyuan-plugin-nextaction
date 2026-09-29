@@ -114,6 +114,7 @@
         selectedTaskOverride?: TaskCacheEntry | null;
         requestedProjectId?: string;
         onProjectRequestApplied?: () => void;
+        onProjectDetailChange?: ((active: boolean) => void) | undefined;
         onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
         onTaskUpdate?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
         onTaskRename?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
@@ -144,6 +145,7 @@
         selectedTaskOverride = null,
         requestedProjectId = "",
         onProjectRequestApplied = undefined,
+        onProjectDetailChange = undefined,
         onSelectTask = undefined,
         onTaskUpdate = undefined,
         onTaskRename = undefined,
@@ -176,6 +178,10 @@
     let boardPreferences: ProjectBoardPreferences = $state(createDefaultProjectBoardPreferences());
     let boardPreferenceSaveQueue: Promise<unknown> = Promise.resolve();
     const dirtyBoardPreferenceProjects = new Set<string>();
+
+    $effect(() => {
+        onProjectDetailChange?.(compact && level === "project");
+    });
 
     onMount(() => {
         if (!bridge) return;
@@ -354,22 +360,21 @@
                 {#if level !== "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
                 {#if mobile && level === "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
                 {#if level === "project"}
-                    {#if mobile}
-                        <span class="na-project-compact-title">{selectedSummary?.project.title || i18n.untitled}</span>
-                    {:else}
-                        <select
-                            class="na-select"
-                            aria-label={i18n.projectViewMode}
-                            value={mode}
-                            onchange={(event) => handleModeChange(event.currentTarget.value)}
-                        >
-                            <option value="overview">{i18n.projectViewOverview}</option><option value="hierarchy"
-                                >{i18n.projectViewHierarchy}</option
-                            ><option value="board">{i18n.projectViewBoard}</option><option value="plan"
-                                >{i18n.projectViewPlan}</option
-                            ><option value="gantt">{i18n.projectViewGantt}</option>
-                        </select>
-                    {/if}
+                    {#if mobile}<span class="na-project-compact-title"
+                            >{selectedSummary?.project.title || i18n.untitled}</span
+                        >{/if}
+                    <select
+                        class="na-select na-project-compact-mode"
+                        aria-label={i18n.projectViewMode}
+                        value={mode}
+                        onchange={(event) => handleModeChange(event.currentTarget.value)}
+                    >
+                        <option value="overview">{i18n.projectViewOverview}</option><option value="hierarchy"
+                            >{i18n.projectViewHierarchy}</option
+                        ><option value="board">{i18n.projectViewBoard}</option><option value="plan"
+                            >{i18n.projectViewPlan}</option
+                        ><option value="gantt">{i18n.projectViewGantt}</option>
+                    </select>
                     <NaIconButton
                         symbol="iconAdd"
                         label={i18n.createChildTask}
@@ -397,23 +402,6 @@
                         onclick={() => (filtersOpen = true)}
                     />{/if}
             </div>
-            {#if mobile && level === "project"}
-                <div class="na-project-mobile-modes">
-                    <NaSegmentControl
-                        stretch
-                        value={mode}
-                        label={i18n.projectViewMode}
-                        options={[
-                            { value: "overview", label: i18n.projectViewOverview },
-                            { value: "board", label: i18n.projectViewBoard },
-                            { value: "plan", label: i18n.projectViewPlan },
-                            { value: "hierarchy", label: i18n.projectViewHierarchy },
-                            { value: "gantt", label: i18n.projectViewGantt },
-                        ]}
-                        onChange={handleModeChange}
-                    />
-                </div>
-            {/if}
             {#if level === "list"}<NaTaskFilterBar
                     contexts={$taskStore.contexts}
                     tags={$taskStore.tags}
@@ -772,18 +760,6 @@
             {#if mobile}
                 <NaButton
                     onclick={() => {
-                        handleModeChange("hierarchy");
-                        actionMenuOpen = false;
-                    }}>{i18n.projectViewHierarchy}</NaButton
-                >
-                <NaButton
-                    onclick={() => {
-                        handleModeChange("gantt");
-                        actionMenuOpen = false;
-                    }}>{i18n.projectViewGantt}</NaButton
-                >
-                <NaButton
-                    onclick={() => {
                         actionMenuOpen = false;
                         filtersOpen = true;
                     }}>{i18n.filterAndSort}</NaButton
@@ -852,19 +828,9 @@
         white-space: nowrap;
         font-weight: 600;
     }
-    .na-project-mobile-modes {
-        padding: 0 8px 8px;
-        min-width: 0;
-    }
-    .na-project-mobile-modes :global(.na-segment-control__option) {
-        min-height: 44px;
-        padding: 4px 8px;
-    }
-    .na-project-mobile-modes__secondary {
-        display: block;
-        padding-top: 4px;
-        color: var(--na-text-secondary);
-        font-size: var(--na-font-size-sm);
+    .na-project-compact-mode {
+        flex: 0 1 112px !important;
+        width: 112px;
     }
     .na-project-workspace--compact .na-project-index {
         display: flex;
@@ -881,6 +847,7 @@
     .na-project-workspace--compact {
         display: flex !important;
         flex-direction: column;
+        flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
         height: 100%;
@@ -893,7 +860,9 @@
         border: 0;
     }
     .na-project-workspace--compact .na-project-canvas {
+        flex: 1 1 auto;
         min-width: 0;
+        min-height: 0;
         width: 100%;
         padding: 12px;
         box-sizing: border-box;
