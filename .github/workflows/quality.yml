@@ -38,6 +38,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Browser test
+        run: pnpm run test:browser
+
       - name: Type check
         run: pnpm run check:types
 

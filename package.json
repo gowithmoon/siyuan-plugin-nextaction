@@ -5,7 +5,8 @@
   "description": "GTD task management plugin for SiYuan",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
-    "test": "node --import tsx --test --test-concurrency=4 tests/*.test.ts",
+    "test": "node scripts/run-tests.js unit",
+    "test:browser": "node scripts/run-tests.js browser",
     "benchmark:sync": "node --import tsx scripts/benchmark-sync.js",
     "test:integration:kernel": "node --env-file-if-exists=.env.local scripts/test-kernel.js",
     "test:integration:mcp": "node --env-file-if-exists=.env.local scripts/test-mcp.js",

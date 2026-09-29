@@ -217,6 +217,8 @@ NextAction 根据重要性、工作量、截止日期紧迫度和手动优先级
 pnpm install
 pnpm run dev              # 监听模式：kernel + app 并行
 pnpm run build            # 生产构建
+pnpm test                 # 不依赖浏览器的单元与集成测试
+pnpm run test:browser     # 浏览器测试（需要 Chrome/Edge 或 NA_LAYOUT_BROWSER）
 pnpm run release          # 构建并部署到本地插件目录
 pnpm run release:package  # 构建市场发布用 package.zip
 pnpm run test:integration:kernel  # 可选：连接本地思源内核测试

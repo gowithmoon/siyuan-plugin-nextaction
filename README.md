@@ -217,6 +217,8 @@ Only when you explicitly trigger an AI feature (extract tasks, decompose, plan M
 pnpm install
 pnpm run dev              # Watch mode: kernel + app in parallel
 pnpm run build            # Production build
+pnpm test                 # Unit and integration tests without a browser
+pnpm run test:browser     # Browser tests (requires Chrome/Edge or NA_LAYOUT_BROWSER)
 pnpm run release          # Build and deploy to local plugin directory
 pnpm run release:package  # Build package.zip for marketplace/GitHub release
 pnpm run test:integration:kernel  # Optional: test against a local SiYuan kernel
