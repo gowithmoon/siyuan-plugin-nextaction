@@ -59,6 +59,23 @@ test("移动设置从分类进入详情并返回时保留草稿与当前分类",
     assert.equal(model.backToCategories(), false);
 });
 
+test("三种提醒方式经控制器保存并重新加载后保持不变", async () => {
+    // Regression: 独立提醒开关无法表达唯一且可持久化的提醒方式。
+    for (const deliveryMode of ["in-app", "system", "none"] as const) {
+        const model = controller();
+        model.load(DEFAULT_SETTINGS);
+        model.edit({
+            ...model.snapshot.draft,
+            reminderSettings: { ...model.snapshot.draft.reminderSettings, deliveryMode },
+        });
+        const saved = await model.save(async (settings) => settings);
+        assert.equal(saved?.reminderSettings.deliveryMode, deliveryMode);
+
+        const reloaded = controller().load(saved);
+        assert.equal(reloaded.reminderSettings.deliveryMode, deliveryMode);
+    }
+});
+
 test("持久化成功立即清除脏状态且后处理错误不会重新变脏", async () => {
     const model = controller();
     model.load(DEFAULT_SETTINGS);
@@ -117,21 +134,26 @@ test("恢复和维护动作共享确认状态但保持不同语义", async () =>
     assert.equal(model.snapshot.maintenanceBusy.has("cache"), false);
 });
 
-test("系统通知草稿默认关闭，加载和重置只在保存后生效", async () => {
+test("提醒方式草稿默认应用内提醒，加载和重置只在保存后生效", async () => {
     const model = controller();
-    assert.equal(model.load({}).reminderSettings.systemNotificationEnabled, false);
-    const enabled = {
+    assert.equal(model.load({}).reminderSettings.deliveryMode, "in-app");
+    const system = {
         ...DEFAULT_SETTINGS,
-        reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+        reminderSettings: {
+            ...DEFAULT_SETTINGS.reminderSettings,
+            deliveryMode: "system" as const,
+            enabled: false,
+            systemNotificationEnabled: true,
+        },
     };
-    model.load(enabled);
-    model.edit({ ...enabled, reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings } });
-    assert.equal(model.snapshot.saved.reminderSettings.systemNotificationEnabled, true);
-    assert.equal(model.snapshot.draft.reminderSettings.systemNotificationEnabled, false);
+    model.load(system);
+    model.edit({ ...system, reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings } });
+    assert.equal(model.snapshot.saved.reminderSettings.deliveryMode, "system");
+    assert.equal(model.snapshot.draft.reminderSettings.deliveryMode, "in-app");
     assert.equal(await model.requestClose(), "confirm-discard");
     model.cancelClose();
     const saved = await model.save(async (settings) => settings);
-    assert.equal(saved?.reminderSettings.systemNotificationEnabled, false);
+    assert.equal(saved?.reminderSettings.deliveryMode, "in-app");
 });
 
 test("刷新失败保留上次应用的设置，重试成功后才执行通知副作用", async () => {
@@ -140,15 +162,17 @@ test("刷新失败保留上次应用的设置，重试成功后才执行通知�
     model.load(DEFAULT_SETTINGS);
     model.edit({
         ...DEFAULT_SETTINGS,
-        reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+        reminderSettings: {
+            ...DEFAULT_SETTINGS.reminderSettings,
+            deliveryMode: "system",
+            enabled: false,
+            systemNotificationEnabled: true,
+        },
     });
     await model.save(async (settings) => settings);
-    const transitions: boolean[][] = [];
+    const transitions: string[][] = [];
     const apply = async (previous: PluginSettings, next: PluginSettings) => {
-        transitions.push([
-            previous.reminderSettings.systemNotificationEnabled,
-            next.reminderSettings.systemNotificationEnabled,
-        ]);
+        transitions.push([previous.reminderSettings.deliveryMode, next.reminderSettings.deliveryMode]);
     };
     await assert.rejects(
         model.refreshAfterSave(async () => {
@@ -158,7 +182,7 @@ test("刷新失败保留上次应用的设置，重试成功后才执行通知�
     );
     assert.deepEqual(transitions, []);
     await model.refreshAfterSave(async () => {}, apply);
-    assert.deepEqual(transitions, [[false, true]]);
+    assert.deepEqual(transitions, [["in-app", "system"]]);
 });
 
 test("设置已保存但刷新失败时保留可重试状态，成功后清除", async () => {

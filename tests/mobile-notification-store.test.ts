@@ -88,7 +88,7 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
 beforeEach(() => {
     taskStore.applySettingsUpdate(
         mergeSettings(DEFAULT_SETTINGS, {
-            reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+            reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, deliveryMode: "system" },
         }),
     );
     (globalThis as unknown as { window?: unknown }).window = {
@@ -337,7 +337,12 @@ test("保存系统通知开关后重建完整集合，关闭后只清理系统�
     const harness = createHarness();
     await initMobileNotificationStore(harness.plugin);
     const off = DEFAULT_SETTINGS.reminderSettings;
-    const on = { ...off, systemNotificationEnabled: true };
+    const on = {
+        ...off,
+        deliveryMode: "system" as const,
+        enabled: false,
+        systemNotificationEnabled: true,
+    };
     const tasks = [futureTask("task-a", 10), futureTask("task-b", 11)];
     await applyMobileNotificationSettings(off, on, tasks, NOW);
     assert.equal(harness.sent.length, 2);

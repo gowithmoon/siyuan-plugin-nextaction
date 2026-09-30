@@ -5,7 +5,7 @@
     import { rebuildReminderQueue } from "../stores/reminder-store";
     import { onMount, tick } from "svelte";
     import { confirm } from "siyuan";
-    import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
+    import type { PluginSettings, MyDayViewMode, CustomFieldDef, ReminderDeliveryMode } from "../../shared/settings";
     import type { CreateTaskDefaultTarget } from "../../shared/task-creation";
     import type { AiFeatureId } from "../../shared/ai";
     import type { I18nStrings } from "../../shared/i18n";
@@ -88,12 +88,11 @@
     let effortScale = $state(DEFAULT_PRIORITY_ENGINE.effortScale);
     let startPreviewDays = $state(DEFAULT_PRIORITY_ENGINE.startPreviewDays);
 
-    let reminderEnabled = $state(DEFAULT_REMINDER_SETTINGS.enabled);
+    let reminderDeliveryMode: ReminderDeliveryMode = $state(DEFAULT_REMINDER_SETTINGS.deliveryMode);
     let reminderDefaultOffsets = $state([...DEFAULT_REMINDER_SETTINGS.defaultOffsets]);
     let reminderDueSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.dueSound);
     let reminderReviewSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.reviewSound);
     let reminderSoundEnabled = $state(DEFAULT_REMINDER_SETTINGS.soundEnabled);
-    let reminderSystemNotificationEnabled = $state(DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled);
     let reminderUseGlobalDefault = $state(DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders);
     let newOffsetValue = $state(60);
     let newOffsetUnit: "minutes" | "hours" | "days" = $state("minutes");
@@ -155,13 +154,11 @@
         startPreviewDays = settings.priorityEngine.startPreviewDays ?? DEFAULT_PRIORITY_ENGINE.startPreviewDays;
         customFields = [...settings.customFields];
         const reminder = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
-        reminderEnabled = reminder.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
+        reminderDeliveryMode = reminder.deliveryMode ?? DEFAULT_REMINDER_SETTINGS.deliveryMode;
         reminderDefaultOffsets = [...(reminder.defaultOffsets ?? DEFAULT_REMINDER_SETTINGS.defaultOffsets)];
         reminderDueSound = reminder.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
         reminderReviewSound = reminder.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
-        reminderSystemNotificationEnabled =
-            reminder.systemNotificationEnabled ?? DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
         reminderUseGlobalDefault =
             reminder.useGlobalDefaultReminders ?? DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders;
         const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
@@ -312,12 +309,13 @@
             lastReviewAt: current.lastReviewAt,
             customFields: [...customFields],
             reminderSettings: {
-                enabled: reminderEnabled,
+                deliveryMode: reminderDeliveryMode,
+                enabled: reminderDeliveryMode === "in-app",
                 defaultOffsets: [...reminderDefaultOffsets],
                 dueSound: reminderDueSound,
                 reviewSound: reminderReviewSound,
                 soundEnabled: reminderSoundEnabled,
-                systemNotificationEnabled: reminderSystemNotificationEnabled,
+                systemNotificationEnabled: reminderDeliveryMode === "system",
                 useGlobalDefaultReminders: reminderUseGlobalDefault,
             },
             mcpSettings: {
@@ -352,7 +350,7 @@
                     const previousReminder = previous.reminderSettings;
                     const nextReminder = next.reminderSettings;
                     if (
-                        previousReminder.enabled !== nextReminder.enabled ||
+                        previousReminder.deliveryMode !== nextReminder.deliveryMode ||
                         previousReminder.useGlobalDefaultReminders !== nextReminder.useGlobalDefaultReminders ||
                         previousReminder.defaultOffsets.length !== nextReminder.defaultOffsets.length ||
                         previousReminder.defaultOffsets.some(
@@ -501,12 +499,11 @@
     }
 
     function doResetReminder() {
-        reminderEnabled = DEFAULT_REMINDER_SETTINGS.enabled;
+        reminderDeliveryMode = DEFAULT_REMINDER_SETTINGS.deliveryMode;
         reminderDefaultOffsets = [...DEFAULT_REMINDER_SETTINGS.defaultOffsets];
         reminderDueSound = DEFAULT_REMINDER_SETTINGS.dueSound;
         reminderReviewSound = DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
-        reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS.systemNotificationEnabled;
         reminderUseGlobalDefault = DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders;
     }
 
@@ -746,12 +743,11 @@
         myDayResetHour,
         myDayDefaultViewMode,
         myDayDefaultDuration,
-        reminderEnabled,
+        reminderDeliveryMode,
         reminderDefaultOffsets,
         reminderDueSound,
         reminderReviewSound,
         reminderSoundEnabled,
-        reminderSystemNotificationEnabled,
         reminderUseGlobalDefault,
         mcpEnabled,
         mcpAllowWrite,
@@ -866,12 +862,11 @@
                     bind:myDayResetHour
                     bind:myDayDefaultViewMode
                     bind:myDayDefaultDuration
-                    bind:reminderEnabled
+                    bind:reminderDeliveryMode
                     bind:reminderDefaultOffsets
                     bind:reminderDueSound
                     bind:reminderReviewSound
                     bind:reminderSoundEnabled
-                    bind:reminderSystemNotificationEnabled
                     bind:reminderUseGlobalDefault
                     bind:newOffsetValue
                     bind:newOffsetUnit

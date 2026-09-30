@@ -90,7 +90,7 @@ test("常规页包含任务创建、任务默认值、我的一天和提醒四�
     assert.match(general, /onAction=\{onResetReminder\}/);
     assert.match(general, /setting-myday-reset-hour/);
     assert.doesNotMatch(general, /setting-myday-enabled|myDayEnabled/);
-    assert.match(general, /setting-reminder-enabled/);
+    assert.match(general, /setting-reminder-delivery-mode/);
     assert.match(general, /setting-task-creation-target/);
 });
 
@@ -138,24 +138,21 @@ test("设置界面基础结构统一使用 Na 公共组件", () => {
     }
 });
 
-test("系统通知开关在音效之后可见，浏览器和关闭提醒时禁用", () => {
-    assert.ok(
-        general.indexOf('id="setting-reminder-system-notification"') >
-            general.indexOf('id="setting-reminder-sound-enabled"'),
-    );
-    assert.match(general, /systemNotificationSupported = supportsSystemNotifications\(getFrontend\(\)\)/);
-    assert.match(
-        general,
-        /bind:checked=\{reminderSystemNotificationEnabled\}\s+disabled=\{!reminderEnabled \|\| !systemNotificationSupported\}/,
-    );
-    assert.match(general, /i18n\.reminderSystemNotificationUnsupported/);
-    assert.match(panel, /bind:reminderSystemNotificationEnabled/);
-    assert.match(panel, /systemNotificationEnabled: reminderSystemNotificationEnabled/);
+test("提醒方式使用单一三选一设置并保留全局默认配置", () => {
+    assert.match(general, /id="setting-reminder-delivery-mode"/);
+    for (const value of ["in-app", "system", "none"]) {
+        assert.match(general, new RegExp(`<option value="${value}">`));
+    }
+    assert.doesNotMatch(general, /setting-reminder-enabled|setting-reminder-system-notification/);
+    assert.match(panel, /bind:reminderDeliveryMode/);
+    assert.match(panel, /deliveryMode: reminderDeliveryMode/);
+    assert.match(panel, /enabled: reminderDeliveryMode === "in-app"/);
+    assert.match(panel, /systemNotificationEnabled: reminderDeliveryMode === "system"/);
     assert.match(panel, /reminderUseGlobalDefault = \$state\(DEFAULT_REMINDER_SETTINGS\.useGlobalDefaultReminders\)/);
     assert.match(panel, /useGlobalDefaultReminders: reminderUseGlobalDefault/);
     assert.match(general, /id="setting-reminder-use-global-default"/);
     assert.match(general, /bind:checked=\{reminderUseGlobalDefault\}/);
-    assert.match(panel, /reminderSystemNotificationEnabled = DEFAULT_REMINDER_SETTINGS\.systemNotificationEnabled/);
+    assert.match(panel, /reminderDeliveryMode = DEFAULT_REMINDER_SETTINGS\.deliveryMode/);
     assert.match(panel, /if \(!result\) return;[\s\S]*controller\.refreshAfterSave/);
     assert.match(panel, /applyMobileNotificationSettings\([\s\S]*get\(taskStore\)\.allTasks/);
 });

@@ -903,18 +903,20 @@
                 onChange={toggleMyDay}
             /></NaPropertyRow
         >
-        <NaPropertyRow
-            label={i18n?.reminder || "Reminders"}
-            helpText={i18n?.reminderHint || "Schedule notifications at a fixed time or before the due date"}
-        >
-            <button
-                type="button"
-                class="b3-button b3-button--text na-task-detail__setting-action"
-                onclick={openReminders}
+        {#if $taskStore.settings?.reminderSettings?.deliveryMode !== "none"}
+            <NaPropertyRow
+                label={i18n?.reminder || "Reminders"}
+                helpText={i18n?.reminderHint || "Schedule notifications at a fixed time or before the due date"}
             >
-                {reminderStatusLabel}
-            </button>
-        </NaPropertyRow>
+                <button
+                    type="button"
+                    class="b3-button b3-button--text na-task-detail__setting-action"
+                    onclick={openReminders}
+                >
+                    {reminderStatusLabel}
+                </button>
+            </NaPropertyRow>
+        {/if}
         <NaPropertyRow
             label={i18n?.repeat || "Repeat"}
             helpText={i18n?.repeatHint || "On completion, advance this task without creating a new SiYuan block"}

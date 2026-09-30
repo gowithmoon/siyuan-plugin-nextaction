@@ -14,7 +14,12 @@ import { taskFactory } from "./helpers/fakes.ts";
 
 const settings = {
     ...DEFAULT_SETTINGS,
-    reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, systemNotificationEnabled: true },
+    reminderSettings: {
+        ...DEFAULT_SETTINGS.reminderSettings,
+        deliveryMode: "system" as const,
+        enabled: false,
+        systemNotificationEnabled: true,
+    },
 };
 function task(id = "task-a") {
     return taskFactory(id, {

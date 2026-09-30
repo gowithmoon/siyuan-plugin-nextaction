@@ -46,8 +46,10 @@ export interface PriorityEngineSettings {
 }
 
 export type MyDayViewMode = "timeline" | "list";
+export type ReminderDeliveryMode = "in-app" | "system" | "none";
 
 export interface ReminderSettings {
+    deliveryMode: ReminderDeliveryMode;
     enabled: boolean;
     defaultOffsets: number[]; // 默认提前量（分钟数）
     dueSound: ReminderSoundId;
@@ -164,6 +166,7 @@ export const DEFAULT_PRIORITY_ENGINE: PriorityEngineSettings = {
 };
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+    deliveryMode: "in-app",
     enabled: true,
     defaultOffsets: [60, 720, 1440, 4320, 7200, 10080],
     dueSound: "chime",
@@ -238,10 +241,9 @@ function normalizeReminderSettings(raw: unknown): ReminderSettings {
     if (!isRecord(raw))
         return { ...DEFAULT_REMINDER_SETTINGS, defaultOffsets: [...DEFAULT_REMINDER_SETTINGS.defaultOffsets] };
     const result = { ...DEFAULT_REMINDER_SETTINGS, defaultOffsets: [...DEFAULT_REMINDER_SETTINGS.defaultOffsets] };
-    if (typeof raw.enabled === "boolean") result.enabled = raw.enabled;
+    if (raw.deliveryMode === "in-app" || raw.deliveryMode === "system" || raw.deliveryMode === "none")
+        result.deliveryMode = raw.deliveryMode;
     if (typeof raw.soundEnabled === "boolean") result.soundEnabled = raw.soundEnabled;
-    if (typeof raw.systemNotificationEnabled === "boolean")
-        result.systemNotificationEnabled = raw.systemNotificationEnabled;
     if (typeof raw.useGlobalDefaultReminders === "boolean")
         result.useGlobalDefaultReminders = raw.useGlobalDefaultReminders;
     if ((REMINDER_SOUND_IDS as readonly unknown[]).includes(raw.dueSound))
@@ -256,6 +258,8 @@ function normalizeReminderSettings(raw: unknown): ReminderSettings {
     ) {
         result.defaultOffsets = [...raw.defaultOffsets] as number[];
     }
+    result.enabled = result.deliveryMode === "in-app";
+    result.systemNotificationEnabled = result.deliveryMode === "system";
     return result;
 }
 
@@ -443,6 +447,14 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
     }
     const rs = settings.reminderSettings;
     if (rs) {
+        if (
+            rs.deliveryMode !== undefined &&
+            rs.deliveryMode !== "in-app" &&
+            rs.deliveryMode !== "system" &&
+            rs.deliveryMode !== "none"
+        ) {
+            return "reminderSettings.deliveryMode must be 'in-app', 'system', or 'none'";
+        }
         if (rs.enabled !== undefined && typeof rs.enabled !== "boolean") {
             return "reminderSettings.enabled must be boolean";
         }
@@ -501,6 +513,12 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
 export function mergeSettings(base: PluginSettings, override: Partial<PluginSettings>): PluginSettings {
     const incomingPrompts: Partial<Record<AiFeatureId, string>> = override.aiSettings?.prompts ?? {};
     const mergedPrompts = { ...base.aiSettings.prompts, ...incomingPrompts };
+    const reminderSettings = {
+        ...base.reminderSettings,
+        ...(override.reminderSettings ?? {}),
+    };
+    reminderSettings.enabled = reminderSettings.deliveryMode === "in-app";
+    reminderSettings.systemNotificationEnabled = reminderSettings.deliveryMode === "system";
     return {
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
         defaultEffort: override.defaultEffort ?? base.defaultEffort,
@@ -521,10 +539,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
                     : { ...field.scope },
             ...(field.options ? { options: field.options.map((option) => ({ ...option })) } : {}),
         })),
-        reminderSettings: {
-            ...base.reminderSettings,
-            ...(override.reminderSettings ?? {}),
-        },
+        reminderSettings,
         mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
         taskCreationSettings: mergeTaskCreationSettings(
             base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS,
