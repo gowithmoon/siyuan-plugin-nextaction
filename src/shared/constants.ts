@@ -63,7 +63,6 @@ export const ACTION_KIND_ACTION = "action";
 export const ACTION_KIND_STAGE = "stage";
 export const TASK_WARNING_PROJECT_REOPENED = "projectReopened";
 export const REMINDER_MAX_PER_TASK = 7;
-export const REMINDER_DATA_PATH = "dismissed-reminders.json";
 
 // 提醒扫描间隔（毫秒）
 export const REMINDER_SCAN_INTERVAL_MS = 30000;
@@ -73,9 +72,6 @@ export const REMINDER_REVIEW_HOUR = 9;
 
 // 通知浮层最大显示数量
 export const REMINDER_MAX_VISIBLE = 5;
-
-// dismissed 记录 TTL（毫秒，7天）
-export const REMINDER_DISMISSED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const REMINDER_MOBILE_PLAN_HORIZON_DAYS = 7;
 export const REMINDER_MOBILE_PLAN_HORIZON_MS = REMINDER_MOBILE_PLAN_HORIZON_DAYS * 24 * 60 * 60 * 1000;

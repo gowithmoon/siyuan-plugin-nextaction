@@ -5,6 +5,7 @@
     import type { I18nStrings } from "../../../shared/i18n";
     import type { KernelBridge } from "../../kernel-bridge";
     import NaDocumentPicker from "../../ui/NaDocumentPicker.svelte";
+    import NaButton from "../../ui/NaButton.svelte";
     import NaDotRating from "../../ui/NaDotRating.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
@@ -38,6 +39,8 @@
         reminderReviewSound: ReminderSoundId;
         reminderSoundEnabled: boolean;
         reminderUseGlobalDefault: boolean;
+        systemNotificationsAvailable: boolean;
+        testingSystemNotification: boolean;
         newOffsetValue: number;
         newOffsetUnit: "minutes" | "hours" | "days";
         soundIds: readonly ReminderSoundId[];
@@ -47,6 +50,7 @@
         onAddOffset: () => void;
         onRemoveOffset: (minutes: number) => void;
         onPreviewSound: (soundId: ReminderSoundId) => void;
+        onTestSystemNotification: () => void;
         onTaskCreationDocumentChange: (document: DocumentSelection | null) => void;
         onResetTaskCreation: () => void;
         onResetDefaults: () => void;
@@ -73,6 +77,8 @@
         reminderReviewSound = $bindable(),
         reminderSoundEnabled = $bindable(),
         reminderUseGlobalDefault = $bindable(),
+        systemNotificationsAvailable,
+        testingSystemNotification,
         newOffsetValue = $bindable(),
         newOffsetUnit = $bindable(),
         soundIds,
@@ -82,6 +88,7 @@
         onAddOffset,
         onRemoveOffset,
         onPreviewSound,
+        onTestSystemNotification,
         onTaskCreationDocumentChange,
         onResetTaskCreation,
         onResetDefaults,
@@ -89,6 +96,7 @@
         onResetReminder,
     }: Props = $props();
     let remindersDisabled = $derived(reminderDeliveryMode === "none");
+    let soundSettingsDisabled = $derived(reminderDeliveryMode !== "in-app");
 </script>
 
 <div class="na-page-stack na-settings-general">
@@ -258,10 +266,35 @@
         >
             <select id="setting-reminder-delivery-mode" class="b3-select" bind:value={reminderDeliveryMode}>
                 <option value="in-app">{i18n.reminderDeliveryModeInApp}</option>
-                <option value="system">{i18n.reminderDeliveryModeSystem}</option>
+                <option value="system">
+                    {systemNotificationsAvailable
+                        ? i18n.reminderDeliveryModeSystem
+                        : i18n.reminderDeliveryModeSystemUnavailable}
+                </option>
                 <option value="none">{i18n.reminderDeliveryModeNone}</option>
             </select>
         </NaSettingRow>
+        {#if reminderDeliveryMode === "system"}
+            <NaSettingRow
+                title={i18n.reminderSystemNotificationTest}
+                description={i18n.reminderSystemNotificationTestDesc}
+            >
+                {#if systemNotificationsAvailable}
+                    <NaButton
+                        id="setting-reminder-test-system-notification"
+                        size="sm"
+                        loading={testingSystemNotification}
+                        onclick={onTestSystemNotification}
+                    >
+                        {i18n.reminderSystemNotificationTest}
+                    </NaButton>
+                {:else}
+                    <span class="na-settings-general__notification-unavailable" role="status">
+                        {i18n.reminderSystemNotificationUnavailable}
+                    </span>
+                {/if}
+            </NaSettingRow>
+        {/if}
         <NaSettingRow
             disabled={remindersDisabled}
             forId="setting-reminder-use-global-default"
@@ -328,7 +361,7 @@
             </div>
         </NaSettingRow>
         <NaSettingRow
-            disabled={remindersDisabled}
+            disabled={soundSettingsDisabled}
             forId="setting-reminder-due-sound"
             title={i18n?.reminderSettingDueSound || "Due reminder sound"}
         >
@@ -337,7 +370,7 @@
                     id="setting-reminder-due-sound"
                     class="b3-select"
                     bind:value={reminderDueSound}
-                    disabled={remindersDisabled}
+                    disabled={soundSettingsDisabled}
                 >
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
@@ -345,7 +378,7 @@
                     type="button"
                     class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
                     onclick={() => onPreviewSound(reminderDueSound)}
-                    disabled={remindersDisabled}
+                    disabled={soundSettingsDisabled}
                     aria-label={i18n?.reminderSoundPreview || "Preview"}
                 >
                     <NaIcon symbol="iconPlay" size={14} />
@@ -353,7 +386,7 @@
             </div>
         </NaSettingRow>
         <NaSettingRow
-            disabled={remindersDisabled}
+            disabled={soundSettingsDisabled}
             forId="setting-reminder-review-sound"
             title={i18n?.reminderSettingReviewSound || "Review reminder sound"}
         >
@@ -362,7 +395,7 @@
                     id="setting-reminder-review-sound"
                     class="b3-select"
                     bind:value={reminderReviewSound}
-                    disabled={remindersDisabled}
+                    disabled={soundSettingsDisabled}
                 >
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
@@ -370,7 +403,7 @@
                     type="button"
                     class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
                     onclick={() => onPreviewSound(reminderReviewSound)}
-                    disabled={remindersDisabled}
+                    disabled={soundSettingsDisabled}
                     aria-label={i18n?.reminderSoundPreview || "Preview"}
                 >
                     <NaIcon symbol="iconPlay" size={14} />
@@ -378,7 +411,7 @@
             </div>
         </NaSettingRow>
         <NaSettingRow
-            disabled={remindersDisabled}
+            disabled={soundSettingsDisabled}
             forId="setting-reminder-sound-enabled"
             title={i18n?.reminderSettingSoundEnabled || "Play reminder sounds"}
             description={i18n?.reminderSettingSoundEnabledDesc || "Play a sound when a reminder appears"}
@@ -388,7 +421,7 @@
                 class="b3-switch"
                 type="checkbox"
                 bind:checked={reminderSoundEnabled}
-                disabled={remindersDisabled}
+                disabled={soundSettingsDisabled}
             />
         </NaSettingRow>
     </NaSection>
@@ -495,5 +528,10 @@
         color: var(--na-text-secondary);
         font-size: 11px;
         font-style: italic;
+    }
+
+    .na-settings-general__notification-unavailable {
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
     }
 </style>

@@ -81,7 +81,6 @@ test("用户可见文案通过 i18n 获取且 fallback 与英文翻译一致", (
     const linkInput = read("../src/frontend/ui/NaLinkInput.svelte");
     const chip = read("../src/frontend/ui/NaChip.svelte");
     const notificationCard = read("../src/frontend/components/NotificationCard.svelte");
-    const reminderView = read("../src/frontend/components/ReminderView.svelte");
     const contextMenu = read("../src/frontend/components/task-context-menu.ts");
     const taskDetail = read("../src/frontend/components/TaskDetail.svelte");
     const projectView = read("../src/frontend/components/ProjectView.svelte");
@@ -103,7 +102,6 @@ test("用户可见文案通过 i18n 获取且 fallback 与英文翻译一致", (
     for (const source of [
         notificationHost,
         notificationCard,
-        reminderView,
         contextMenu,
         taskDetail,
         projectView,

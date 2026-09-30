@@ -24,15 +24,12 @@ const definitions: { group: I18nKey; views: { view: ViewType; key: I18nKey; icon
         views: [
             { view: "review", key: "review", icon: "iconCheck" },
             { view: "statistics", key: "statistics", icon: "iconGraph" },
-            { view: "reminder", key: "reminder", icon: "iconClock" },
         ],
     },
 ];
-export function getViewDirectory(i18n: I18nStrings, reminders = true) {
+export function getViewDirectory(i18n: I18nStrings) {
     return definitions.map((group) => ({
         label: i18n[group.group] || group.group,
-        items: group.views
-            .filter((view) => reminders || view.view !== "reminder")
-            .map((view) => ({ ...view, label: i18n[view.key] || view.key })),
+        items: group.views.map((view) => ({ ...view, label: i18n[view.key] || view.key })),
     }));
 }

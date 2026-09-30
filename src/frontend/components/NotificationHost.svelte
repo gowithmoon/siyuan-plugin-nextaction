@@ -27,17 +27,15 @@
     let { i18n, bridge = undefined }: Props = $props();
 
     let hasNotifications = $derived($visibleNotifications.length > 0);
-    let overflowCount = $derived(
-        Math.max(0, $notificationQueue.filter((r) => !r.dismissed).length - REMINDER_MAX_VISIBLE),
-    );
+    let overflowCount = $derived(Math.max(0, $notificationQueue.length - REMINDER_MAX_VISIBLE));
 
-    let dismissAllLabel = $derived(i18n?.reminderDismissAll || "一键已读");
+    let dismissAllLabel = $derived(i18n?.reminderDismissAll || "全部关闭");
 
     function handleDismiss(item: {
         blockId: string;
         baseDateStr: string;
         minutesBefore: number;
-        type: "due" | "review" | "absolute" | "summary";
+        type: "due" | "review" | "absolute";
     }) {
         const dedupKey = `${item.blockId}|${item.baseDateStr}|${item.minutesBefore}|${item.type}`;
         dismissReminder(dedupKey);
@@ -86,11 +84,7 @@
         void handleActionMoveUndo();
     }
 
-    function getMessage(item: {
-        type: "due" | "review" | "absolute" | "summary";
-        dueTime: number;
-        triggerTime?: number;
-    }): string {
+    function getMessage(item: { type: "due" | "review" | "absolute"; dueTime: number; triggerTime?: number }): string {
         if (item.type === "review") {
             return i18n?.reminderReviewToday || "今天需回顾";
         }
@@ -106,10 +100,6 @@
                 return `${month}${i18n?.reminderMonth || "月"}${day}${i18n?.reminderDay || "日"} ${h}:${m}`;
             }
             return `${month}${i18n?.reminderMonth || "月"}${day}${i18n?.reminderDay || "日"} ${h}:${m}`;
-        }
-        if (item.type === "summary") {
-            // Summary type doesn't use getMessage — rendered directly in NotificationCard
-            return "";
         }
         // Calculate actual time remaining until due (or overdue)
         const diffMs = item.dueTime - Date.now();
@@ -165,7 +155,6 @@
                 message={getMessage(item)}
                 blockId={item.blockId}
                 onDismiss={() => handleDismiss(item)}
-                summary={item.summary}
                 {i18n}
             />
         {/each}

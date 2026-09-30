@@ -149,28 +149,14 @@ export interface ReminderAbsolute {
 
 export type ReminderItem = ReminderRelative | ReminderAbsolute;
 
-export interface ReminderSummaryData {
-    overdue: number; // 已逾期任务数
-    dueToday: number; // 今日到期任务数
-    startingToday: number; // 今日开始任务数（start date 为今天）
-    nextAction: number; // 下一步行动任务数
-    waiting: number; // 等待中任务数
-}
-
 export interface ReminderEntry {
     blockId: string;
     title: string;
     triggerTime: number; // 实际触发时间戳（ms）
-    type: "due" | "review" | "absolute" | "summary"; // 截止提醒 or 回顾提醒 or 固定时间提醒 or 汇总
+    type: "due" | "review" | "absolute"; // 截止提醒 or 回顾提醒 or 固定时间提醒
     minutesBefore: number; // 提前了多少分钟（review 类型固定为 0）
     baseDateStr: string; // 触发基准日期字符串（due 的日期 or reviewDate）
     dueTime: number; // 截止时间戳（ms），用于计算实际剩余/逾期
-    dismissed: boolean; // 用户是否已处理
-    summary?: ReminderSummaryData; // type=summary 时的统计数据
-}
-
-export interface DismissedRecord {
-    [dedupKey: string]: number; // 去重键 → dismissed 时间戳
 }
 
 export interface TaskSnapshotV2 {

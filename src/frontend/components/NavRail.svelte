@@ -1,8 +1,8 @@
 <script lang="ts">
     import { getViewDirectory } from "../view-directory";
     import { onMount } from "svelte";
-    import { VIEW_NEXT_ACTION, VIEW_REVIEW, VIEW_REMINDER } from "../constants";
-    import { taskStore, pendingReminderCount } from "../stores/task-store";
+    import { VIEW_NEXT_ACTION, VIEW_REVIEW } from "../constants";
+    import { taskStore } from "../stores/task-store";
     import NaIcon from "../ui/NaIcon.svelte";
     import NaNavItem from "../ui/NaNavItem.svelte";
     import NaTooltip from "../ui/NaTooltip.svelte";
@@ -16,9 +16,7 @@
 
     let { activeView = VIEW_NEXT_ACTION, onSwitchView, onRefresh, i18n }: Props = $props();
 
-    let reminderEnabled = $derived($taskStore.settings?.reminderSettings?.enabled !== false);
-
-    let navGroups = $derived(getViewDirectory(i18n, reminderEnabled));
+    let navGroups = $derived(getViewDirectory(i18n));
 
     let refreshDone = $state(false);
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,11 +67,7 @@
                     collapsed={compact}
                     active={activeView === item.view}
                     tooltip={item.label}
-                    badge={item.view === VIEW_REVIEW
-                        ? $taskStore.reviewDueCount
-                        : item.view === VIEW_REMINDER
-                          ? $pendingReminderCount
-                          : ""}
+                    badge={item.view === VIEW_REVIEW ? $taskStore.reviewDueCount : ""}
                     onclick={() => onSwitchView(item.view)}
                 />
             {/each}

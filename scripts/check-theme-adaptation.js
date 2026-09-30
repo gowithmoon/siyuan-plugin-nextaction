@@ -22,7 +22,6 @@ const TASK_THEME_FILES = [
     "src/frontend/components/ReviewGuide.svelte",
     "src/frontend/components/ReviewDueList.svelte",
     "src/frontend/components/StatisticsView.svelte",
-    "src/frontend/components/ReminderView.svelte",
     "src/frontend/components/DockSidebar.svelte",
     "src/frontend/components/TaskCard.svelte",
     "src/frontend/components/timeline/TimelineView.svelte",

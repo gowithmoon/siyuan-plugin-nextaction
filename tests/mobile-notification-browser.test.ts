@@ -12,6 +12,9 @@ type Result = {
     saved: boolean;
     sent: number;
     cancelled: number;
+    testButton: boolean;
+    unavailable: boolean;
+    testMessage: string;
     error?: string;
 };
 
@@ -29,6 +32,7 @@ export function setFrontend(value) { frontend = value; }
 export function getFrontend() { return frontend; }
 export const sent = [];
 export const cancelled = [];
+export const messages = [];
 export const platformUtils = {
     async sendNotification(options) { sent.push(options); return sent.length; },
     cancelNotification(id) { cancelled.push(id); },
@@ -37,11 +41,11 @@ export class Dialog {}
 export class Menu { addItem() {} addSeparator() {} open() {} }
 export function confirm(_title, _message, yes) { yes(); }
 export function openTab() {}
-export function showMessage() {}
+export function showMessage(message) { messages.push(message); }
 `,
             "main.js": `
 import { mount, unmount, tick } from "svelte";
-import { setFrontend, getFrontend, platformUtils, sent, cancelled } from "siyuan";
+import { setFrontend, getFrontend, platformUtils, sent, cancelled, messages } from "siyuan";
 import SettingsPanel from ${source("src/frontend/components/SettingsPanel.svelte")};
 import { taskStore } from ${source("src/frontend/stores/task-store.ts")};
 import { DEFAULT_SETTINGS } from ${source("src/shared/settings.ts")};
@@ -66,6 +70,7 @@ async function run() {
             configureMobileNotificationRuntime({ getFrontend, platformUtils });
             sent.length = 0;
             cancelled.length = 0;
+            messages.length = 0;
             const supported = !frontend.startsWith("browser");
             let settings = structuredClone(DEFAULT_SETTINGS);
             settings.reminderSettings.soundEnabled = false;
@@ -103,10 +108,18 @@ async function run() {
             input.value = "system";
             input.dispatchEvent(new Event("change", { bubbles: true }));
             await tick();
+            const testButton = document.getElementById("setting-reminder-test-system-notification");
+            result.testButton = Boolean(testButton);
+            result.unavailable = Boolean(document.querySelector(".na-settings-general__notification-unavailable"));
+            if (testButton) {
+                testButton.click();
+                await waitFor(() => messages.length === 1 && sent.length === 1);
+            }
+            result.testMessage = messages[0] || "";
             const save = document.querySelector(".na-settings-modern__footer-actions .b3-button--primary");
             await waitFor(() => !save.disabled);
             save.click();
-            await waitFor(() => save.disabled && (!supported || sent.length === 1));
+            await waitFor(() => save.disabled && (!supported || sent.length === 2));
             result.saved = settings.reminderSettings.deliveryMode === "system"
                 && settings.reminderSettings.enabled === false
                 && settings.reminderSettings.systemNotificationEnabled === true;
@@ -144,7 +157,20 @@ run().catch(error => window.__NA_BROWSER_RESULT__([{ error: String(error.stack |
             context,
         );
         assert.equal(result.saved, true, context);
-        assert.equal(result.sent, supported ? 1 : 0, context);
+        assert.equal(result.testButton, supported, context);
+        assert.equal(result.unavailable, !supported, context);
+        assert.equal(
+            result.testMessage,
+            supported
+                ? `[NextAction] ${
+                      zh
+                          ? "已发送系统通知，若未收到说明当前环境不可用，请切换应用内通知"
+                          : "System notification sent. If you did not receive it, switch to in-app reminders."
+                  }`
+                : "",
+            context,
+        );
+        assert.equal(result.sent, supported ? 2 : 0, context);
         assert.equal(result.cancelled, supported ? 1 : 0, context);
     }
 });

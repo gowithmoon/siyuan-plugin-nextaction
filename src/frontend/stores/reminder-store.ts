@@ -7,23 +7,18 @@ import {
     REMINDER_SCAN_INTERVAL_MS,
     REMINDER_REVIEW_HOUR,
     REMINDER_MAX_VISIBLE,
-    REMINDER_DISMISSED_TTL_MS,
-    REMINDER_DATA_PATH,
     type ReminderSoundId,
 } from "../../shared/constants";
 import type {
     ReminderEntry,
-    DismissedRecord,
     TaskCacheEntry,
     ReminderItem,
     ReminderRelative,
     ReminderAbsolute,
-    ReminderSummaryData,
 } from "../../shared/types";
 import type { Plugin } from "siyuan";
 import { playSound } from "../utils/audio-player";
 import { resolveReminderItems } from "../utils/reminder-utils";
-import { isNextActionCandidate } from "../utils/filter";
 
 // ---------------------------------------------------------------------------
 // State
@@ -33,15 +28,10 @@ import { isNextActionCandidate } from "../utils/filter";
 export const notificationQueue = writable<ReminderEntry[]>([]);
 
 /** Visible slice of the notification queue (capped by REMINDER_MAX_VISIBLE) */
-export const visibleNotifications = derived(notificationQueue, ($q) =>
-    $q.filter((r) => !r.dismissed).slice(0, REMINDER_MAX_VISIBLE),
-);
+export const visibleNotifications = derived(notificationQueue, ($q) => $q.slice(0, REMINDER_MAX_VISIBLE));
 
-/** Dismissed dedup-keys persisted via Plugin.saveData */
-let dismissed: DismissedRecord = {};
-
-/** Plugin reference — set during init */
-let pluginRef: Plugin | null = null;
+/** Reminder events already shown during the current plugin lifetime. */
+const deliveredKeys = new Set<string>();
 
 /** Handle for the 30 s scan timer */
 let scanTimer: ReturnType<typeof setInterval> | null = null;
@@ -58,7 +48,7 @@ function getEffectiveReminders(entry: TaskCacheEntry): ReminderItem[] {
     return resolveReminderItems(entry.reminder, get(taskStore).settings?.reminderSettings, !!entry.due);
 }
 
-/** Rebuild pending desktop reminders after a settings change. Dismissal history is retained. */
+/** Rebuild pending in-app reminders after a settings change. */
 export function rebuildReminderQueue(): void {
     notificationQueue.set([]);
     pendingReminderCount.set(0);
@@ -85,137 +75,9 @@ export function buildDedupKey(
     blockId: string,
     baseDateStr: string,
     minutesBefore: number,
-    type: "due" | "review" | "absolute" | "summary",
+    type: "due" | "review" | "absolute",
 ): string {
     return `${blockId}|${baseDateStr}|${minutesBefore}|${type}`;
-}
-
-/**
- * Get today's date as a local YYYY-MM-DD string (avoids UTC offset from toISOString).
- */
-function localDateStr(): string {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
-/**
- * Check if a task's due date is before now (overdue).
- */
-function isOverdue(entry: TaskCacheEntry): boolean {
-    if (!entry.due || entry.status === "done" || entry.status === "someday") return false;
-    if (entry.due.length <= 10) {
-        // 纯日期格式：使用字符串比较，截止日当天不算逾期
-        const todayStr = localDateStr();
-        return entry.due.slice(0, 10) < todayStr;
-    }
-    // 日期时间格式：精确比较
-    const dueTimeMs = new Date(entry.due).getTime();
-    return dueTimeMs < Date.now();
-}
-
-/**
- * Check if a task's due date is today.
- */
-function isDueToday(entry: TaskCacheEntry): boolean {
-    if (!entry.due || entry.status === "done" || entry.status === "someday") return false;
-    const todayStr = localDateStr();
-    return entry.due.slice(0, 10) === todayStr;
-}
-
-/**
- * Check if a task's start date is today (Tickler activation).
- */
-function isStartingToday(entry: TaskCacheEntry): boolean {
-    if (!entry.start || entry.status === "done") return false;
-    const todayStr = localDateStr();
-    return entry.start.slice(0, 10) === todayStr;
-}
-
-// ---------------------------------------------------------------------------
-// Dismissed persistence
-// ---------------------------------------------------------------------------
-
-/** Remove entries older than TTL */
-function cleanupExpiredDismissed(record: DismissedRecord): DismissedRecord {
-    const cutoff = Date.now() - REMINDER_DISMISSED_TTL_MS;
-    const cleaned: DismissedRecord = {};
-    const keys = Object.keys(record);
-    for (const key of keys) {
-        const ts = record[key];
-        if (ts >= cutoff) {
-            cleaned[key] = ts;
-        }
-    }
-    return cleaned;
-}
-
-async function loadDismissed(): Promise<void> {
-    if (!pluginRef) return;
-    try {
-        const data = await pluginRef.loadData(REMINDER_DATA_PATH);
-        if (data && typeof data === "object") {
-            dismissed = cleanupExpiredDismissed(data as DismissedRecord);
-        } else {
-            dismissed = {};
-        }
-    } catch {
-        dismissed = {};
-    }
-}
-
-async function saveDismissed(): Promise<void> {
-    if (!pluginRef) return;
-    try {
-        await pluginRef.saveData(REMINDER_DATA_PATH, dismissed);
-    } catch (e) {
-        console.error("[NextAction] saveDismissed failed:", e);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Summary computation
-// ---------------------------------------------------------------------------
-
-/**
- * Compute summary statistics from all tasks for the overview card.
- */
-function computeSummary(): ReminderSummaryData {
-    const allTasks = get(taskStore).allTasks;
-    const startPreviewDays = get(taskStore).settings?.priorityEngine?.startPreviewDays ?? 0;
-
-    let overdue = 0;
-    let dueToday = 0;
-    let startingToday = 0;
-    let nextAction = 0;
-    let waiting = 0;
-
-    for (const entry of allTasks) {
-        if (entry.status === "done") continue;
-        if (isOverdue(entry)) overdue++;
-        if (isDueToday(entry)) dueToday++;
-        if (isStartingToday(entry)) startingToday++;
-        if (isNextActionCandidate(entry, startPreviewDays)) nextAction++;
-        if (entry.status === "waiting") waiting++;
-    }
-
-    return { overdue, dueToday, startingToday, nextAction, waiting };
-}
-
-/**
- * Check if a summary entry should be shown.
- * Only show when there is something actionable to report.
- */
-function hasActionableItems(summary: ReminderSummaryData): boolean {
-    return (
-        summary.overdue > 0 ||
-        summary.dueToday > 0 ||
-        summary.startingToday > 0 ||
-        summary.nextAction > 0 ||
-        summary.waiting > 0
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -225,7 +87,7 @@ function hasActionableItems(summary: ReminderSummaryData): boolean {
 function scanReminders(playNewSound = true): void {
     const settings = get(taskStore).settings;
     const reminderSettings = settings?.reminderSettings;
-    if (!reminderSettings?.enabled) return;
+    if (reminderSettings?.deliveryMode !== "in-app") return;
 
     const now = Date.now();
     const candidates = get(tasksWithDueOrReview);
@@ -235,43 +97,6 @@ function scanReminders(playNewSound = true): void {
         currentQueue.map((r) => buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type)),
     );
     const newEntries: ReminderEntry[] = [];
-
-    // ---- Summary card ----
-    // Use a fixed blockId for the summary entry so we can dedup it
-    const SUMMARY_BLOCK_ID = "__summary__";
-    const summaryAlreadyQueued = queuedBlockIds.has(SUMMARY_BLOCK_ID);
-    const todayStr = localDateStr();
-    const summaryDedupKey = buildDedupKey(SUMMARY_BLOCK_ID, todayStr, 0, "summary");
-
-    if (summaryAlreadyQueued) {
-        // Update existing summary with fresh counts (reflects newly overdue tasks)
-        const freshSummary = computeSummary();
-        notificationQueue.update((queue) =>
-            queue.map((r) => {
-                if (r.blockId === SUMMARY_BLOCK_ID && !r.dismissed) {
-                    return { ...r, summary: freshSummary };
-                }
-                return r;
-            }),
-        );
-    } else if (!dismissed[summaryDedupKey]) {
-        const summary = computeSummary();
-        if (hasActionableItems(summary)) {
-            newEntries.push({
-                blockId: SUMMARY_BLOCK_ID,
-                title: "",
-                triggerTime: now,
-                type: "summary",
-                minutesBefore: 0,
-                baseDateStr: todayStr,
-                dueTime: now,
-                dismissed: false,
-                summary,
-            });
-            queuedBlockIds.add(SUMMARY_BLOCK_ID);
-            queuedDedupKeys.add(summaryDedupKey);
-        }
-    }
 
     // ---- Individual reminders ----
     for (const entry of candidates) {
@@ -287,7 +112,7 @@ function scanReminders(playNewSound = true): void {
                     if (triggerTime > now) continue;
 
                     const dedupKey = buildDedupKey(entry.blockId, item.time, 0, "absolute");
-                    if (dismissed[dedupKey]) continue;
+                    if (deliveredKeys.has(dedupKey)) continue;
                     if (queuedDedupKeys.has(dedupKey)) continue;
 
                     const current = get(taskStore).allTasks.find((t) => t.blockId === entry.blockId);
@@ -301,7 +126,6 @@ function scanReminders(playNewSound = true): void {
                         minutesBefore: 0,
                         baseDateStr: item.time,
                         dueTime: triggerTime,
-                        dismissed: false,
                     });
                     queuedBlockIds.add(entry.blockId);
                     queuedDedupKeys.add(dedupKey);
@@ -334,7 +158,7 @@ function scanReminders(playNewSound = true): void {
 
                 const baseDateStr = entry.due.slice(0, 10);
                 const dedupKey = buildDedupKey(entry.blockId, baseDateStr, item.minutes, "due");
-                if (dismissed[dedupKey]) continue;
+                if (deliveredKeys.has(dedupKey)) continue;
                 if (queuedDedupKeys.has(dedupKey)) continue;
 
                 queuedDedupKeys.add(dedupKey);
@@ -347,8 +171,6 @@ function scanReminders(playNewSound = true): void {
                     triggerTime,
                     minutesBefore: item.minutes,
                     baseDateStr,
-                    dismissed: false,
-                    summary: undefined,
                 });
             }
         }
@@ -359,7 +181,7 @@ function scanReminders(playNewSound = true): void {
             const baseDateStr = entry.reviewDate;
             const dedupKey = buildDedupKey(entry.blockId, baseDateStr, 0, "review");
 
-            if (reviewMs <= now && !dismissed[dedupKey] && !queuedDedupKeys.has(dedupKey)) {
+            if (reviewMs <= now && !deliveredKeys.has(dedupKey) && !queuedDedupKeys.has(dedupKey)) {
                 const current = get(taskStore).allTasks.find((t) => t.blockId === entry.blockId);
                 if (!current || current.status === "done") continue;
 
@@ -371,7 +193,6 @@ function scanReminders(playNewSound = true): void {
                     minutesBefore: 0,
                     baseDateStr,
                     dueTime: reviewMs,
-                    dismissed: false,
                 });
                 queuedBlockIds.add(entry.blockId);
                 queuedDedupKeys.add(dedupKey);
@@ -389,14 +210,14 @@ function scanReminders(playNewSound = true): void {
             if (!existing.has(key)) {
                 added.push(e);
                 existing.add(key);
+                deliveredKeys.add(key);
             }
         }
         return [...queue, ...added];
     });
 
     const updatedQueue = get(notificationQueue);
-    const undismissed = updatedQueue.filter((r) => !r.dismissed);
-    pendingReminderCount.set(undismissed.length);
+    pendingReminderCount.set(updatedQueue.length);
 
     if (playNewSound && reminderSettings.soundEnabled) {
         const firstNew = newEntries[0];
@@ -413,36 +234,16 @@ function scanReminders(playNewSound = true): void {
 // ---------------------------------------------------------------------------
 
 export function dismissReminder(dedupKey: string): void {
-    dismissed[dedupKey] = Date.now();
-
     notificationQueue.update((queue) =>
-        queue.map((r) => {
-            const key = buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type);
-            if (key === dedupKey) return { ...r, dismissed: true };
-            return r;
-        }),
+        queue.filter((r) => buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type) !== dedupKey),
     );
 
-    // Also remove dismissed entries from the queue entirely to keep it clean
-    notificationQueue.update((queue) => queue.filter((r) => !r.dismissed));
-
     const currentQueue = get(notificationQueue);
-    pendingReminderCount.set(currentQueue.filter((r) => !r.dismissed).length);
-    void saveDismissed();
+    pendingReminderCount.set(currentQueue.length);
 }
 
 export function dismissAllReminders(): void {
-    const now = Date.now();
-    const queue = get(notificationQueue);
-    for (const r of queue) {
-        if (!r.dismissed) {
-            const key = buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type);
-            dismissed[key] = now;
-        }
-    }
-    void saveDismissed();
-
-    notificationQueue.update((q) => q.map((r) => ({ ...r, dismissed: true })));
+    notificationQueue.set([]);
     pendingReminderCount.set(0);
 }
 
@@ -450,12 +251,7 @@ export function dismissAllReminders(): void {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-export async function initReminderStore(plugin: Plugin): Promise<void> {
-    pluginRef = plugin;
-
-    // Load and clean up dismissed records using TTL
-    await loadDismissed();
-
+export async function initReminderStore(_plugin: Plugin): Promise<void> {
     // Initial scan (covers catch-up for missed reminders)
     try {
         scanReminders();
@@ -478,7 +274,7 @@ export function destroyReminderStore(): void {
         clearInterval(scanTimer);
         scanTimer = null;
     }
-    pluginRef = null;
+    deliveredKeys.clear();
     notificationQueue.set([]);
     pendingReminderCount.set(0);
 }

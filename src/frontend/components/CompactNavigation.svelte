@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { I18nStrings } from "../../shared/i18n";
-    import { taskStore, pendingReminderCount } from "../stores/task-store";
+    import { taskStore } from "../stores/task-store";
     import { getViewDirectory } from "../view-directory";
     import { QUICK_VIEWS } from "../controllers/workspace-session";
     import NaIcon from "../ui/NaIcon.svelte";
@@ -14,7 +14,7 @@
         onCatalog: () => void;
     }
     let { i18n, activeView, catalog, bottom = false, directoryOnly = false, onSwitch, onCatalog }: Props = $props();
-    let groups = $derived(getViewDirectory(i18n, $taskStore.settings?.reminderSettings?.enabled !== false));
+    let groups = $derived(getViewDirectory(i18n));
     let quick = $derived(QUICK_VIEWS.map((id) => groups.flatMap((g) => g.items).find((v) => v.view === id)!));
 </script>
 
@@ -28,8 +28,6 @@
                         <NaIcon symbol={item.icon} size={18} /><span>{item.label}</span>
                         {#if item.view === "review" && $taskStore.reviewDueCount}<small
                                 >{$taskStore.reviewDueCount}</small
-                            >{/if}
-                        {#if item.view === "reminder" && $pendingReminderCount}<small>{$pendingReminderCount}</small
                             >{/if}
                         <NaIcon symbol="iconRight" size={12} />
                     </button>

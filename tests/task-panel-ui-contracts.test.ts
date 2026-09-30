@@ -41,7 +41,7 @@ test("五个任务列表视图统一使用公共视图、筛选和列表骨架",
     assert.doesNotMatch(taskList, /export let/);
 });
 
-test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组件", () => {
+test("我的一天、回顾和统计视图使用对应的 Na 公共组件，提醒独立视图已移除", () => {
     const myDay = source("../src/frontend/components/MyDayView.svelte");
     assert.match(myDay, /NaViewShell/);
     assert.match(myDay, /NaToolbar/);
@@ -59,10 +59,11 @@ test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组�
     assert.match(statistics, /NaMetricStrip/);
     assert.match(statistics, /NaProgressBar/);
 
-    const reminder = source("../src/frontend/components/ReminderView.svelte");
-    assert.match(reminder, /NaBadge/);
-    assert.match(reminder, /NaIconButton/);
-    assert.match(reminder, /reminderOverdueMinutes/);
+    assert.equal(existsSync(new URL("../src/frontend/components/ReminderView.svelte", import.meta.url)), false);
+    const workspace = source("../src/frontend/components/Workspace.svelte");
+    const directory = source("../src/frontend/view-directory.ts");
+    assert.doesNotMatch(workspace, /ReminderView|VIEW_REMINDER/);
+    assert.doesNotMatch(directory, /view: "reminder"/);
 });
 
 test("桌面 Dock 保留三段式专用视图，完整面板继续使用共享视图", () => {

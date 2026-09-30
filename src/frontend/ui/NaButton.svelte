@@ -11,11 +11,13 @@
     export let type: "button" | "submit" | "reset" = "button";
     export let ariaLabel = "";
     export let ariaPressed: boolean | undefined = undefined;
+    export let id = "";
     export let children: Snippet;
     export let onclick: (event: MouseEvent) => void = () => {};
 </script>
 
 <button
+    id={id || undefined}
     {type}
     class="na-button"
     class:na-button--primary={variant === "primary"}

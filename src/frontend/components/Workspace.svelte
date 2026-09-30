@@ -21,7 +21,6 @@
         VIEW_STATISTICS,
         VIEW_MY_DAY,
         VIEW_REVIEW,
-        VIEW_REMINDER,
     } from "../constants";
     import NavRail from "./NavRail.svelte";
     import NextActionView from "./NextActionView.svelte";
@@ -33,7 +32,6 @@
     import WaitingView from "./WaitingView.svelte";
     import MyDayView from "./MyDayView.svelte";
     import ReviewView from "./ReviewView.svelte";
-    import ReminderView from "./ReminderView.svelte";
     import TaskDetail from "./TaskDetail.svelte";
     import { showTaskContextMenu } from "./task-context-menu";
     import { showStatusMenu, taskWriteWarningMessage } from "../utils";
@@ -493,7 +491,7 @@
     }
 
     let selectedTaskId = $derived(selectedTask ? selectedTask.blockId : "");
-    let directory = $derived(getViewDirectory(i18n, $taskStore.settings?.reminderSettings?.enabled !== false));
+    let directory = $derived(getViewDirectory(i18n));
     let activeViewMeta = $derived(
         directory.flatMap((group) => group.items).find((item) => item.view === activeView) || directory[0].items[0],
     );
@@ -673,8 +671,6 @@
                     onContextMenu={handleContextMenu}
                     {i18n}
                 />
-            {:else if activeView === VIEW_REMINDER}
-                <ReminderView {i18n} />
             {/if}
         </div>
     </div>

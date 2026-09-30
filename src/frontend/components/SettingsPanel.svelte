@@ -1,7 +1,11 @@
 <script lang="ts">
     import { get } from "svelte/store";
     import { taskStore } from "../stores/task-store";
-    import { applyMobileNotificationSettings } from "../stores/mobile-notification-store";
+    import {
+        applyMobileNotificationSettings,
+        sendTestSystemNotification,
+        shouldScheduleSystemNotification,
+    } from "../stores/mobile-notification-store";
     import { rebuildReminderQueue } from "../stores/reminder-store";
     import { onMount, tick } from "svelte";
     import { confirm } from "siyuan";
@@ -96,6 +100,8 @@
     let reminderUseGlobalDefault = $state(DEFAULT_REMINDER_SETTINGS.useGlobalDefaultReminders);
     let newOffsetValue = $state(60);
     let newOffsetUnit: "minutes" | "hours" | "days" = $state("minutes");
+    let testingSystemNotification = $state(false);
+    const systemNotificationsAvailable = shouldScheduleSystemNotification();
 
     let mcpEnabled = $state(DEFAULT_MCP_SETTINGS.enabled);
     let mcpAllowWrite = $state(DEFAULT_MCP_SETTINGS.allowWrite);
@@ -379,6 +385,17 @@
         } finally {
             postSaveBusy = false;
             syncControllerState();
+        }
+    }
+
+    async function handleTestSystemNotification() {
+        if (!systemNotificationsAvailable || testingSystemNotification) return;
+        testingSystemNotification = true;
+        try {
+            await sendTestSystemNotification("NextAction", i18n.reminderSystemNotificationTestBody);
+            notifyInfo(i18n.reminderSystemNotificationTestSent);
+        } finally {
+            testingSystemNotification = false;
         }
     }
 
@@ -868,6 +885,8 @@
                     bind:reminderReviewSound
                     bind:reminderSoundEnabled
                     bind:reminderUseGlobalDefault
+                    {systemNotificationsAvailable}
+                    {testingSystemNotification}
                     bind:newOffsetValue
                     bind:newOffsetUnit
                     soundIds={REMINDER_SOUND_IDS}
@@ -877,6 +896,7 @@
                     onAddOffset={handleAddOffset}
                     onRemoveOffset={handleRemoveOffset}
                     onPreviewSound={handlePreviewSound}
+                    onTestSystemNotification={handleTestSystemNotification}
                     onTaskCreationDocumentChange={handleTaskCreationDocumentChange}
                     onResetTaskCreation={handleResetTaskCreation}
                     onResetDefaults={handleResetDefaults}

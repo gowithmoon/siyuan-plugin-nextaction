@@ -24,7 +24,6 @@ export const VIEW_ALL_TASKS = "all";
 export const VIEW_BY_PROJECT = "byProject";
 export const VIEW_STATISTICS = "statistics";
 export const VIEW_REVIEW = "review";
-export const VIEW_REMINDER = "reminder";
 export type ViewType =
     | typeof VIEW_INBOX
     | typeof VIEW_NEXT_ACTION
@@ -34,8 +33,7 @@ export type ViewType =
     | typeof VIEW_WAITING
     | typeof VIEW_MY_DAY
     | typeof VIEW_STATISTICS
-    | typeof VIEW_REVIEW
-    | typeof VIEW_REMINDER;
+    | typeof VIEW_REVIEW;
 
 export const STATUS_LIST = PROJECT_BOARD_STATUSES;
 export const PRIORITY_LIST = ["critical", "high", "medium", "low", "veryLow"] as const;

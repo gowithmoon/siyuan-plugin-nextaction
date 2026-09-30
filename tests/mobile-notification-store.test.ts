@@ -13,6 +13,7 @@ import {
     initMobileNotificationStore,
     rebuildAllMobileNotifications,
     scheduleMobileNotifications,
+    sendTestSystemNotification,
     supportsSystemNotifications,
     updateMobileNotifications,
     type MobileNotificationRuntime,
@@ -406,6 +407,56 @@ test("设置开关与调度共享移动和桌面 App 能力边界", () => {
     for (const frontend of ["browser-mobile", "browser-desktop", "unknown"]) {
         assert.equal(supportsSystemNotifications(frontend), false);
     }
+});
+
+// Regression: 保存系统通知设置时，已经错过的触发点曾被立即批量发送。
+test("启用系统通知只安排未来事件，不补发过去触发点", async () => {
+    const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
+    const harness = createHarness(() => "desktop");
+    await initMobileNotificationStore(harness.plugin);
+    const off = DEFAULT_SETTINGS.reminderSettings;
+    const on = get(taskStore).settings.reminderSettings;
+    const past = taskFactory("past-trigger", {
+        due: "2030-01-01T09:00",
+        reminder: '[{"type":"relative","minutes":90}]',
+    });
+
+    await applyMobileNotificationSettings(off, on, [past], NOW);
+
+    assert.deepEqual(harness.sent, []);
+});
+
+test("测试系统通知仅在支持的平台发送一次，失败时静默", async () => {
+    const supported = createHarness(() => "desktop");
+    await sendTestSystemNotification("NextAction", "Test notification");
+    assert.equal(supported.sent.length, 1);
+    assert.deepEqual(supported.sent[0].options, {
+        title: "NextAction",
+        body: "Test notification",
+        channel: "NextAction Reminders",
+    });
+
+    configureMobileNotificationRuntime({
+        getFrontend: () => "browser-desktop",
+        platformUtils: {
+            async sendNotification() {
+                throw new Error("不应调用");
+            },
+            cancelNotification() {},
+        },
+    });
+    await assert.doesNotReject(() => sendTestSystemNotification("NextAction", "Test notification"));
+
+    configureMobileNotificationRuntime({
+        getFrontend: () => "desktop",
+        platformUtils: {
+            async sendNotification() {
+                throw new Error("平台失败");
+            },
+            cancelNotification() {},
+        },
+    });
+    await assert.doesNotReject(() => sendTestSystemNotification("NextAction", "Test notification"));
 });
 
 test("初始化加载尚未完成时销毁，不得在返回后重新启用调度", async () => {

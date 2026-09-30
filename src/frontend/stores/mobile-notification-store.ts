@@ -71,6 +71,10 @@ export function shouldScheduleSystemNotification(runtime: MobileNotificationRunt
     return !!runtime && supportsSystemNotifications(runtime.getFrontend());
 }
 
+function usesSystemNotifications(settings: ReminderSettings | undefined): boolean {
+    return settings?.deliveryMode === "system";
+}
+
 export function supportsSystemNotifications(frontend: string): boolean {
     return frontend === "mobile" || frontend === "desktop" || frontend === "desktop-window";
 }
@@ -268,7 +272,7 @@ async function sendNotificationForTrigger(
     generation: number,
 ): Promise<number | null> {
     const settings = get(taskStore).settings?.reminderSettings;
-    if (!isCurrentGeneration(generation) || !settings?.systemNotificationEnabled) return null;
+    if (!isCurrentGeneration(generation) || !usesSystemNotifications(settings)) return null;
 
     try {
         const runtime = await getPlatformRuntime();
@@ -291,9 +295,24 @@ async function sendNotificationForTrigger(
 }
 
 async function canScheduleSystemNotification(): Promise<boolean> {
-    if (!get(taskStore).settings?.reminderSettings?.systemNotificationEnabled) return false;
+    if (!usesSystemNotifications(get(taskStore).settings?.reminderSettings)) return false;
     const runtime = await getPlatformRuntime().catch(() => null);
     return !!runtime && shouldScheduleSystemNotification(runtime);
+}
+
+/** Send one user-requested notification without changing reminder plans or settings. */
+export async function sendTestSystemNotification(title: string, body: string): Promise<void> {
+    try {
+        const runtime = await getPlatformRuntime();
+        if (!shouldScheduleSystemNotification(runtime)) return;
+        await runtime.platformUtils.sendNotification({
+            title,
+            body,
+            channel: REMINDER_MOBILE_CHANNEL,
+        });
+    } catch {
+        // The test button intentionally leaves delivery confirmation to the user.
+    }
 }
 
 async function cancelBlockUnlocked(blockId: string, generation: number): Promise<void> {
@@ -512,11 +531,11 @@ export async function applyMobileNotificationSettings(
     tasks: readonly TaskCacheEntry[],
     nowMs = Date.now(),
 ): Promise<void> {
-    if (previous.systemNotificationEnabled && !next.systemNotificationEnabled) {
+    if (previous.deliveryMode === "system" && next.deliveryMode !== "system") {
         await cancelAllMobileNotifications();
     } else if (
-        next.systemNotificationEnabled &&
-        (!previous.systemNotificationEnabled ||
+        next.deliveryMode === "system" &&
+        (previous.deliveryMode !== "system" ||
             previous.defaultOffsets.length !== next.defaultOffsets.length ||
             previous.defaultOffsets.some((offset, index) => offset !== next.defaultOffsets[index]) ||
             previous.useGlobalDefaultReminders !== next.useGlobalDefaultReminders)
