@@ -6,7 +6,11 @@ import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 type ReminderSettingsResult = {
     options?: string[];
     initial?: string;
+    soundSettingsVisibleInitially?: boolean;
+    soundSettingsHiddenForSystem?: boolean;
     reloaded?: string;
+    soundSettingsHiddenForNone?: boolean;
+    soundSettingsRestoredForInApp?: boolean;
     hiddenWhenNone?: boolean;
     restoredLabel?: string;
     preservedReminder?: string;
@@ -33,10 +37,15 @@ import { mount, unmount, tick } from "svelte";
 import SettingsPanel from ${source("src/frontend/components/SettingsPanel.svelte")};
 import TaskDetail from ${source("src/frontend/components/TaskDetail.svelte")};
 import { taskStore } from ${source("src/frontend/stores/task-store.ts")};
+import { configureMobileNotificationRuntime } from ${source("src/frontend/stores/mobile-notification-store.ts")};
 import { DEFAULT_SETTINGS } from ${source("src/shared/settings.ts")};
 import en from ${source("src/i18n/en.json")};
 
 const target = document.getElementById("app");
+configureMobileNotificationRuntime({
+    getFrontend: () => "desktop",
+    platformUtils: { async sendNotification() { return 1; }, cancelNotification() {} },
+});
 const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
 async function settled() { await pause(); await tick(); }
 async function waitFor(predicate, label) {
@@ -56,10 +65,16 @@ const bridge = {
 };
 const panelProps = { bridge, i18n: en, onSave(value) { taskStore.applySettingsUpdate(value); }, onClose() {} };
 const deliverySelect = () => document.getElementById("setting-reminder-delivery-mode");
+const soundSettingsVisible = () =>
+    [
+        "setting-reminder-due-sound",
+        "setting-reminder-review-sound",
+        "setting-reminder-sound-enabled",
+    ].every((id) => document.getElementById(id) !== null);
 const selected = () => deliverySelect()?.selectedOptions[0]?.textContent.trim();
-const choose = (label) => {
+const choose = (value) => {
     const select = deliverySelect();
-    select.value = [...select.options].find((option) => option.textContent.trim() === label).value;
+    select.value = value;
     select.dispatchEvent(new Event("change", { bubbles: true }));
 };
 const save = async () => {
@@ -75,11 +90,14 @@ async function run() {
     await settled();
     const options = [...deliverySelect().options].map((option) => option.textContent.trim());
     const initial = selected();
-    choose("System notifications");
+    const soundSettingsVisibleInitially = soundSettingsVisible();
+    choose("system");
     await waitFor(
         () => selected() === "System notifications",
         "selection changed from " + selected(),
     );
+    await settled();
+    const soundSettingsHiddenForSystem = !soundSettingsVisible();
     await save();
     await unmount(panel);
     target.replaceChildren();
@@ -87,8 +105,14 @@ async function run() {
     panel = mount(SettingsPanel, { target, props: panelProps });
     await waitFor(() => selected() === "System notifications", "saved selection reloaded");
     const reloaded = selected();
-    choose("No reminders");
+    choose("in-app");
+    await waitFor(() => selected() === "In-app reminders", "in-app selected");
+    await settled();
+    const soundSettingsRestoredForInApp = soundSettingsVisible();
+    choose("none");
     await waitFor(() => selected() === "No reminders", "none selected");
+    await settled();
+    const soundSettingsHiddenForNone = !soundSettingsVisible();
     await save();
     await unmount(panel);
     target.replaceChildren();
@@ -115,7 +139,9 @@ async function run() {
     await unmount(detail);
 
     window.__NA_BROWSER_RESULT__({
-        options, initial, reloaded, hiddenWhenNone, restoredLabel,
+        options, initial, soundSettingsVisibleInitially, soundSettingsHiddenForSystem,
+        reloaded, soundSettingsHiddenForNone, soundSettingsRestoredForInApp,
+        hiddenWhenNone, restoredLabel,
         preservedReminder: task.reminder,
     });
 }
@@ -127,7 +153,11 @@ run().catch((error) => window.__NA_BROWSER_RESULT__({ error: String(error?.stack
     assert.equal(result.error, undefined, result.error || "浏览器行为执行失败");
     assert.deepEqual(result.options, ["In-app reminders", "System notifications", "No reminders"]);
     assert.equal(result.initial, "In-app reminders");
+    assert.equal(result.soundSettingsVisibleInitially, true);
+    assert.equal(result.soundSettingsHiddenForSystem, true);
     assert.equal(result.reloaded, "System notifications");
+    assert.equal(result.soundSettingsHiddenForNone, true);
+    assert.equal(result.soundSettingsRestoredForInApp, true);
     assert.equal(result.hiddenWhenNone, true);
     assert.equal(result.restoredLabel, "Reminder configured");
     assert.equal(result.preservedReminder, '[{"type":"relative","minutes":30}]');

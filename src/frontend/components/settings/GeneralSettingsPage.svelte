@@ -96,7 +96,6 @@
         onResetReminder,
     }: Props = $props();
     let remindersDisabled = $derived(reminderDeliveryMode === "none");
-    let soundSettingsDisabled = $derived(reminderDeliveryMode !== "in-app");
 </script>
 
 <div class="na-page-stack na-settings-general">
@@ -360,70 +359,56 @@
                 </div>
             </div>
         </NaSettingRow>
-        <NaSettingRow
-            disabled={soundSettingsDisabled}
-            forId="setting-reminder-due-sound"
-            title={i18n?.reminderSettingDueSound || "Due reminder sound"}
-        >
-            <div class="na-settings-general__sound-control">
-                <select
-                    id="setting-reminder-due-sound"
-                    class="b3-select"
-                    bind:value={reminderDueSound}
-                    disabled={soundSettingsDisabled}
-                >
-                    {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
-                </select>
-                <button
-                    type="button"
-                    class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                    onclick={() => onPreviewSound(reminderDueSound)}
-                    disabled={soundSettingsDisabled}
-                    aria-label={i18n?.reminderSoundPreview || "Preview"}
-                >
-                    <NaIcon symbol="iconPlay" size={14} />
-                </button>
-            </div>
-        </NaSettingRow>
-        <NaSettingRow
-            disabled={soundSettingsDisabled}
-            forId="setting-reminder-review-sound"
-            title={i18n?.reminderSettingReviewSound || "Review reminder sound"}
-        >
-            <div class="na-settings-general__sound-control">
-                <select
-                    id="setting-reminder-review-sound"
-                    class="b3-select"
-                    bind:value={reminderReviewSound}
-                    disabled={soundSettingsDisabled}
-                >
-                    {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
-                </select>
-                <button
-                    type="button"
-                    class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                    onclick={() => onPreviewSound(reminderReviewSound)}
-                    disabled={soundSettingsDisabled}
-                    aria-label={i18n?.reminderSoundPreview || "Preview"}
-                >
-                    <NaIcon symbol="iconPlay" size={14} />
-                </button>
-            </div>
-        </NaSettingRow>
-        <NaSettingRow
-            disabled={soundSettingsDisabled}
-            forId="setting-reminder-sound-enabled"
-            title={i18n?.reminderSettingSoundEnabled || "Play reminder sounds"}
-            description={i18n?.reminderSettingSoundEnabledDesc || "Play a sound when a reminder appears"}
-        >
-            <input
-                id="setting-reminder-sound-enabled"
-                class="b3-switch"
-                type="checkbox"
-                bind:checked={reminderSoundEnabled}
-                disabled={soundSettingsDisabled}
-            />
-        </NaSettingRow>
+        {#if reminderDeliveryMode === "in-app"}
+            <NaSettingRow
+                forId="setting-reminder-due-sound"
+                title={i18n?.reminderSettingDueSound || "Due reminder sound"}
+            >
+                <div class="na-settings-general__sound-control">
+                    <select id="setting-reminder-due-sound" class="b3-select" bind:value={reminderDueSound}>
+                        {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
+                    </select>
+                    <button
+                        type="button"
+                        class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
+                        onclick={() => onPreviewSound(reminderDueSound)}
+                        aria-label={i18n?.reminderSoundPreview || "Preview"}
+                    >
+                        <NaIcon symbol="iconPlay" size={14} />
+                    </button>
+                </div>
+            </NaSettingRow>
+            <NaSettingRow
+                forId="setting-reminder-review-sound"
+                title={i18n?.reminderSettingReviewSound || "Review reminder sound"}
+            >
+                <div class="na-settings-general__sound-control">
+                    <select id="setting-reminder-review-sound" class="b3-select" bind:value={reminderReviewSound}>
+                        {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
+                    </select>
+                    <button
+                        type="button"
+                        class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
+                        onclick={() => onPreviewSound(reminderReviewSound)}
+                        aria-label={i18n?.reminderSoundPreview || "Preview"}
+                    >
+                        <NaIcon symbol="iconPlay" size={14} />
+                    </button>
+                </div>
+            </NaSettingRow>
+            <NaSettingRow
+                forId="setting-reminder-sound-enabled"
+                title={i18n?.reminderSettingSoundEnabled || "Play reminder sounds"}
+                description={i18n?.reminderSettingSoundEnabledDesc || "Play a sound when a reminder appears"}
+            >
+                <input
+                    id="setting-reminder-sound-enabled"
+                    class="b3-switch"
+                    type="checkbox"
+                    bind:checked={reminderSoundEnabled}
+                />
+            </NaSettingRow>
+        {/if}
     </NaSection>
 </div>
 
