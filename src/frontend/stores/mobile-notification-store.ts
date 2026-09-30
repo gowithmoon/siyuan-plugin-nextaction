@@ -355,9 +355,7 @@ function buildNotificationBody(trigger: MobileNotificationTrigger): string {
     const template =
         trigger.kind === "absolute"
             ? i18n.reminderSystemNotificationBodyAbsolute || "{task}\nScheduled for {dateTime}"
-            : i18n.reminderSystemNotificationBodyRelative ||
-              i18n.reminderSystemNotificationBody ||
-              "{task}\nDue in {offset} · {dateTime}";
+            : i18n.reminderSystemNotificationBodyRelative || "{task}\nDue in {offset} · {dateTime}";
     const body = fillNotificationTemplate(template, values);
     return body.includes(task) ? body : `${task}\n${body}`;
 }

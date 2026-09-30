@@ -146,8 +146,8 @@ test("提醒方式使用单一三选一设置并保留全局默认配置", () =>
     assert.doesNotMatch(general, /setting-reminder-enabled|setting-reminder-system-notification/);
     assert.match(panel, /bind:reminderDeliveryMode/);
     assert.match(panel, /deliveryMode: reminderDeliveryMode/);
-    assert.match(panel, /enabled: reminderDeliveryMode === "in-app"/);
-    assert.match(panel, /systemNotificationEnabled: reminderDeliveryMode === "system"/);
+    assert.doesNotMatch(panel, /systemNotificationEnabled/);
+    assert.doesNotMatch(panel, /enabled: reminderDeliveryMode/);
     assert.match(panel, /reminderUseGlobalDefault = \$state\(DEFAULT_REMINDER_SETTINGS\.useGlobalDefaultReminders\)/);
     assert.match(panel, /useGlobalDefaultReminders: reminderUseGlobalDefault/);
     assert.match(general, /id="setting-reminder-use-global-default"/);

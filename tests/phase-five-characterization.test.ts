@@ -120,7 +120,7 @@ test("旧版持久化设置逐字段归一化并保留自定义字段", () => {
         ...DEFAULT_SETTINGS,
         customFields: [customField],
         reminderSettings: {
-            enabled: true,
+            deliveryMode: "in-app",
             defaultOffsets: [60, 720],
             dueSound: "chime",
             reviewSound: "soft",
@@ -134,10 +134,7 @@ test("旧版持久化设置逐字段归一化并保留自定义字段", () => {
     });
 
     assert.deepEqual(normalized.customFields, [customField]);
-    assert.equal(
-        normalized.reminderSettings.systemNotificationEnabled,
-        DEFAULT_SETTINGS.reminderSettings.systemNotificationEnabled,
-    );
+    assert.equal(normalized.reminderSettings.deliveryMode, DEFAULT_SETTINGS.reminderSettings.deliveryMode);
     assert.equal(normalized.reminderSettings.useGlobalDefaultReminders, false);
     assert.equal(normalized.taskCreationSettings.defaultCreateTarget, "daily_note");
     assert.equal(normalized.defaultImportance, DEFAULT_SETTINGS.defaultImportance);
@@ -152,12 +149,11 @@ test("旧版提醒设置缺少全局默认开关时回退为 false", () => {
     const normalized = normalizeSettings({
         ...DEFAULT_SETTINGS,
         reminderSettings: {
-            enabled: true,
+            deliveryMode: "in-app",
             defaultOffsets: [60],
             dueSound: "chime",
             reviewSound: "soft",
             soundEnabled: true,
-            systemNotificationEnabled: false,
         },
     });
     assert.equal(normalized.reminderSettings.useGlobalDefaultReminders, false);

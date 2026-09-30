@@ -254,7 +254,7 @@
     <NaSection
         icon="iconClock"
         title={i18n?.reminder || "Reminders"}
-        description={i18n?.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}
+        description={i18n.reminderSettingDesc}
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetReminder}
     >
@@ -334,9 +334,7 @@
                             </button>
                         </span>
                     {:else}
-                        <span class="na-settings-general__empty"
-                            >{i18n?.reminderNoPending || "No advance times configured"}</span
-                        >
+                        <span class="na-settings-general__empty">{i18n.reminderNoDefaultOffsets}</span>
                     {/each}
                 </div>
                 <div class="na-settings-general__offset-add">

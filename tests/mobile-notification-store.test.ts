@@ -330,16 +330,7 @@ test("取消不存在的任务没有副作用，cancelAll 只清空当前设备"
     assert.deepEqual(harness.readStorage(), {});
 });
 
-test("默认系统通知开关关闭且非法值被设置校验拒绝", async () => {
-    assert.equal(DEFAULT_SETTINGS.reminderSettings.systemNotificationEnabled, false);
-    const { validateSettings } = await import("../src/shared/settings.ts");
-    assert.equal(
-        validateSettings({ reminderSettings: { systemNotificationEnabled: "yes" } as never }),
-        "reminderSettings.systemNotificationEnabled must be boolean",
-    );
-});
-
-test("保存系统通知开关后重建完整集合，关闭后只清理系统通知文件", async () => {
+test("保存系统通知方式后重建完整集合，关闭后只清理系统通知文件", async () => {
     // Regression: settings changes must update native notifications only after saving.
     const { applyMobileNotificationSettings } = await import("../src/frontend/stores/mobile-notification-store.ts");
     const harness = createHarness();
@@ -348,8 +339,6 @@ test("保存系统通知开关后重建完整集合，关闭后只清理系统�
     const on = {
         ...off,
         deliveryMode: "system" as const,
-        enabled: false,
-        systemNotificationEnabled: true,
     };
     const tasks = [futureTask("task-a", 10), futureTask("task-b", 11)];
     await applyMobileNotificationSettings(off, on, tasks, NOW);

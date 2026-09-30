@@ -121,8 +121,8 @@ async function run() {
             save.click();
             await waitFor(() => save.disabled && (!supported || sent.length === 2));
             result.saved = settings.reminderSettings.deliveryMode === "system"
-                && settings.reminderSettings.enabled === false
-                && settings.reminderSettings.systemNotificationEnabled === true;
+                && !("enabled" in settings.reminderSettings)
+                && !("systemNotificationEnabled" in settings.reminderSettings);
             result.sent = sent.length;
             input.value = "in-app";
             input.dispatchEvent(new Event("change", { bubbles: true }));

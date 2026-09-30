@@ -50,12 +50,10 @@ export type ReminderDeliveryMode = "in-app" | "system" | "none";
 
 export interface ReminderSettings {
     deliveryMode: ReminderDeliveryMode;
-    enabled: boolean;
     defaultOffsets: number[]; // 默认提前量（分钟数）
     dueSound: ReminderSoundId;
     reviewSound: ReminderSoundId;
     soundEnabled: boolean;
-    systemNotificationEnabled: boolean;
     useGlobalDefaultReminders: boolean;
 }
 
@@ -167,12 +165,10 @@ export const DEFAULT_PRIORITY_ENGINE: PriorityEngineSettings = {
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
     deliveryMode: "in-app",
-    enabled: true,
     defaultOffsets: [60, 720, 1440, 4320, 7200, 10080],
     dueSound: "chime",
     reviewSound: "soft",
     soundEnabled: true,
-    systemNotificationEnabled: false,
     useGlobalDefaultReminders: false,
 };
 
@@ -258,8 +254,6 @@ function normalizeReminderSettings(raw: unknown): ReminderSettings {
     ) {
         result.defaultOffsets = [...raw.defaultOffsets] as number[];
     }
-    result.enabled = result.deliveryMode === "in-app";
-    result.systemNotificationEnabled = result.deliveryMode === "system";
     return result;
 }
 
@@ -455,9 +449,6 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         ) {
             return "reminderSettings.deliveryMode must be 'in-app', 'system', or 'none'";
         }
-        if (rs.enabled !== undefined && typeof rs.enabled !== "boolean") {
-            return "reminderSettings.enabled must be boolean";
-        }
         if (rs.defaultOffsets !== undefined) {
             if (!Array.isArray(rs.defaultOffsets)) {
                 return "reminderSettings.defaultOffsets must be an array";
@@ -483,9 +474,6 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
         if (rs.soundEnabled !== undefined && typeof rs.soundEnabled !== "boolean") {
             return "reminderSettings.soundEnabled must be boolean";
-        }
-        if (rs.systemNotificationEnabled !== undefined && typeof rs.systemNotificationEnabled !== "boolean") {
-            return "reminderSettings.systemNotificationEnabled must be boolean";
         }
         if (rs.useGlobalDefaultReminders !== undefined && typeof rs.useGlobalDefaultReminders !== "boolean") {
             return "reminderSettings.useGlobalDefaultReminders must be boolean";
@@ -513,12 +501,10 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
 export function mergeSettings(base: PluginSettings, override: Partial<PluginSettings>): PluginSettings {
     const incomingPrompts: Partial<Record<AiFeatureId, string>> = override.aiSettings?.prompts ?? {};
     const mergedPrompts = { ...base.aiSettings.prompts, ...incomingPrompts };
-    const reminderSettings = {
+    const reminderSettings = normalizeReminderSettings({
         ...base.reminderSettings,
         ...(override.reminderSettings ?? {}),
-    };
-    reminderSettings.enabled = reminderSettings.deliveryMode === "in-app";
-    reminderSettings.systemNotificationEnabled = reminderSettings.deliveryMode === "system";
+    });
     return {
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
         defaultEffort: override.defaultEffort ?? base.defaultEffort,

@@ -17,8 +17,6 @@ const settings = {
     reminderSettings: {
         ...DEFAULT_SETTINGS.reminderSettings,
         deliveryMode: "system" as const,
-        enabled: false,
-        systemNotificationEnabled: true,
     },
 };
 function task(id = "task-a") {

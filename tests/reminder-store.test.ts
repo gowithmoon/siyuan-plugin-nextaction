@@ -25,7 +25,6 @@ test("应用内模式投递卡片，关闭仅处理当前卡片且切换方式�
         reminderSettings: {
             ...DEFAULT_SETTINGS.reminderSettings,
             deliveryMode: "in-app",
-            enabled: true,
             soundEnabled: false,
             defaultOffsets: [1500],
             useGlobalDefaultReminders: true,
@@ -60,8 +59,6 @@ test("应用内模式投递卡片，关闭仅处理当前卡片且切换方式�
         reminderSettings: {
             ...DEFAULT_SETTINGS.reminderSettings,
             deliveryMode: "system",
-            enabled: false,
-            systemNotificationEnabled: true,
             soundEnabled: false,
             defaultOffsets: [1500],
             useGlobalDefaultReminders: true,
@@ -74,7 +71,6 @@ test("应用内模式投递卡片，关闭仅处理当前卡片且切换方式�
         reminderSettings: {
             ...DEFAULT_SETTINGS.reminderSettings,
             deliveryMode: "in-app",
-            enabled: true,
             soundEnabled: false,
             defaultOffsets: [1500],
             useGlobalDefaultReminders: true,
@@ -121,8 +117,6 @@ test("系统通知和不提醒模式不进入应用内队列，也不播放插�
             reminderSettings: {
                 ...DEFAULT_SETTINGS.reminderSettings,
                 deliveryMode: "system",
-                enabled: false,
-                systemNotificationEnabled: true,
                 defaultOffsets: [120],
                 useGlobalDefaultReminders: true,
             },

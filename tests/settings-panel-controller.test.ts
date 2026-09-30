@@ -142,8 +142,6 @@ test("提醒方式草稿默认应用内提醒，加载和重置只在保存后�
         reminderSettings: {
             ...DEFAULT_SETTINGS.reminderSettings,
             deliveryMode: "system" as const,
-            enabled: false,
-            systemNotificationEnabled: true,
         },
     };
     model.load(system);
@@ -165,8 +163,6 @@ test("刷新失败保留上次应用的设置，重试成功后才执行通知�
         reminderSettings: {
             ...DEFAULT_SETTINGS.reminderSettings,
             deliveryMode: "system",
-            enabled: false,
-            systemNotificationEnabled: true,
         },
     });
     await model.save(async (settings) => settings);

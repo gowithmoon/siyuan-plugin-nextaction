@@ -35,7 +35,8 @@ test("非法提醒方式不会进入已保存设置", () => {
     );
 });
 
-test("提醒方式是旧投递布尔值的唯一来源", () => {
+test("提醒设置只保存单一投递方式，不保留旧双开关", () => {
+    // Regression: 旧投递布尔值即使由 deliveryMode 派生，仍会继续污染设置契约。
     const normalized = normalizeSettings({
         ...DEFAULT_SETTINGS,
         reminderSettings: {
@@ -45,8 +46,9 @@ test("提醒方式是旧投递布尔值的唯一来源", () => {
             systemNotificationEnabled: false,
         },
     });
-    assert.equal(normalized.reminderSettings.enabled, false);
-    assert.equal(normalized.reminderSettings.systemNotificationEnabled, true);
+    assert.equal(normalized.reminderSettings.deliveryMode, "system");
+    assert.equal("enabled" in normalized.reminderSettings, false);
+    assert.equal("systemNotificationEnabled" in normalized.reminderSettings, false);
 
     const disabled = mergeSettings(DEFAULT_SETTINGS, {
         reminderSettings: {
@@ -54,10 +56,11 @@ test("提醒方式是旧投递布尔值的唯一来源", () => {
             deliveryMode: "none",
             enabled: true,
             systemNotificationEnabled: true,
-        },
+        } as never,
     });
-    assert.equal(disabled.reminderSettings.enabled, false);
-    assert.equal(disabled.reminderSettings.systemNotificationEnabled, false);
+    assert.equal(disabled.reminderSettings.deliveryMode, "none");
+    assert.equal("enabled" in disabled.reminderSettings, false);
+    assert.equal("systemNotificationEnabled" in disabled.reminderSettings, false);
 
     const withoutMigration = normalizeSettings({
         ...DEFAULT_SETTINGS,
@@ -69,6 +72,6 @@ test("提醒方式是旧投递布尔值的唯一来源", () => {
         },
     });
     assert.equal(withoutMigration.reminderSettings.deliveryMode, "in-app");
-    assert.equal(withoutMigration.reminderSettings.enabled, true);
-    assert.equal(withoutMigration.reminderSettings.systemNotificationEnabled, false);
+    assert.equal("enabled" in withoutMigration.reminderSettings, false);
+    assert.equal("systemNotificationEnabled" in withoutMigration.reminderSettings, false);
 });

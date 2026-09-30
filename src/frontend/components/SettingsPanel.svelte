@@ -316,12 +316,10 @@
             customFields: [...customFields],
             reminderSettings: {
                 deliveryMode: reminderDeliveryMode,
-                enabled: reminderDeliveryMode === "in-app",
                 defaultOffsets: [...reminderDefaultOffsets],
                 dueSound: reminderDueSound,
                 reviewSound: reminderReviewSound,
                 soundEnabled: reminderSoundEnabled,
-                systemNotificationEnabled: reminderDeliveryMode === "system",
                 useGlobalDefaultReminders: reminderUseGlobalDefault,
             },
             mcpSettings: {
