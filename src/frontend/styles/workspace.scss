@@ -357,6 +357,10 @@
     }
 }
 
+.na-workspace--touch .na-app__list:has(.na-project-board) {
+    touch-action: pan-x pan-y;
+}
+
 .na-workspace--touch .na-view--myday {
     .na-view-shell {
         overflow-y: auto;

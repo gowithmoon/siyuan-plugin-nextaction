@@ -108,6 +108,10 @@
     let draggingTask: TaskCacheEntry | null = null;
     let dropColumnKey = $state("");
     let busy = $state(false);
+    let suppressTouchClick = $state(false);
+    let touchActive = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
     let boardElement: HTMLDivElement | undefined = $state();
     let resizeObserver: ResizeObserver | null = null;
     let boardWidth = $state(1024);
@@ -122,6 +126,10 @@
     let groupBy = $state<ProjectBoardGroupBy>(untrack(() => preference.groupBy));
     let sortBy = $state<ProjectBoardSortBy>(untrack(() => preference.sortBy));
     let sortAsc = $state(untrack(() => preference.sortAsc));
+    let settingsOpen = $state(false);
+    let settingsGroupBy = $state<ProjectBoardGroupBy>("status");
+    let settingsSortBy = $state<ProjectBoardSortBy>("order");
+    let settingsSortAsc = $state(false);
 
     function persistPreference() {
         onPreferenceChange?.({
@@ -148,6 +156,23 @@
         persistPreference();
     }
 
+    function openSettings() {
+        settingsGroupBy = groupBy;
+        settingsSortBy = sortBy;
+        settingsSortAsc = sortAsc;
+        settingsOpen = true;
+    }
+
+    function applySettings() {
+        const groupChanged = settingsGroupBy !== groupBy;
+        groupBy = settingsGroupBy;
+        sortBy = settingsSortBy;
+        sortAsc = settingsSortAsc;
+        if (groupChanged) narrowColumnIndex = 0;
+        settingsOpen = false;
+        persistPreference();
+    }
+
     function groupLabel(group: ProjectBoardGroupBy): string {
         if (group === "status") return i18n?.status || "Status";
         if (group === "priority") return i18n?.priority || "Priority";
@@ -169,6 +194,40 @@
         draggingTask = task;
         event.dataTransfer?.setData("text/plain", task.blockId);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    }
+
+    function handleTouchStart(event: PointerEvent) {
+        if (!touch || event.pointerType !== "touch") return;
+        touchStartX = event.clientX;
+        touchStartY = event.clientY;
+        touchActive = true;
+        suppressTouchClick = false;
+        if (event.pointerId > 0) {
+            (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+        }
+    }
+
+    function handleTouchMove(event: PointerEvent) {
+        if (!touch || event.pointerType !== "touch" || !touchActive) return;
+        if (Math.hypot(event.clientX - touchStartX, event.clientY - touchStartY) > 8) suppressTouchClick = true;
+    }
+
+    function handleTouchEnd(event: PointerEvent) {
+        if (!touch || event.pointerType !== "touch") return;
+        if (event.pointerId > 0) {
+            (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+        }
+        touchActive = false;
+        touchStartX = 0;
+        touchStartY = 0;
+        if (suppressTouchClick) setTimeout(() => (suppressTouchClick = false), 0);
+    }
+
+    function handleCardClickCapture(event: MouseEvent) {
+        if (!suppressTouchClick) return;
+        event.preventDefault();
+        event.stopPropagation();
+        suppressTouchClick = false;
     }
 
     function resetDrag() {
@@ -246,7 +305,7 @@
     });
     let orderedTasks = $derived(sortProjectBoardTasks(tasks, sortBy, sortAsc, customFields));
     let columns = $derived(buildProjectBoardColumns(orderedTasks, groupBy, projectTasks));
-    let narrow = $derived(compact || boardWidth <= 780);
+    let narrow = $derived(!touch && boardWidth <= 780);
     $effect(() => {
         const clamped = Math.max(0, Math.min(narrowColumnIndex, Math.max(0, columns.length - 1)));
         if (clamped !== narrowColumnIndex) {
@@ -262,46 +321,52 @@
         {#if progress}
             <div class="na-project-board__progress">{@render progress()}</div>
         {/if}
-        <div class="na-project-board__toolbar">
-            <div class="na-project-board__control">
-                <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
-                <select
-                    id="na-project-board-group-by"
-                    class="na-select na-select--sm"
-                    onchange={handleGroupByChange}
-                    value={groupBy}
-                >
-                    <option value="status">{groupLabel("status")}</option>
-                    <option value="stage">{groupLabel("stage")}</option>
-                    <option value="priority">{groupLabel("priority")}</option>
-                    <option value="importance">{groupLabel("importance")}</option>
-                </select>
-            </div>
-            <div class="na-project-board__control">
-                <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
-                <select
-                    id="na-project-board-sort"
-                    class="na-select na-select--sm"
-                    onchange={handleSortChange}
-                    value={sortBy}
-                >
-                    <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
-                    <option value="due">{i18n?.sortByDue || "Due date"}</option>
-                    <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
-                    <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
-                    {#each customFields.filter((field) => field.status === "active") as field (field.key)}
-                        <option value={`custom:${field.key}`}>{field.label}</option>
-                    {/each}
-                </select>
-                <NaIconButton
-                    compact
-                    symbol={sortAsc ? "iconUp" : "iconDown"}
-                    label={`${i18n?.projectBoardSortDirection || "Sort direction"}: ${sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}`}
-                    active={sortAsc}
-                    onclick={handleSortDirectionChange}
-                />
-            </div>
-        </div>
+        {#if touch}
+            <NaIconButton
+                symbol="iconFilter"
+                label={i18n?.projectBoardSettings || "Board settings"}
+                onclick={openSettings}
+            />
+        {:else}<div class="na-project-board__toolbar">
+                <div class="na-project-board__control">
+                    <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
+                    <select
+                        id="na-project-board-group-by"
+                        class="na-select na-select--sm"
+                        onchange={handleGroupByChange}
+                        value={groupBy}
+                    >
+                        <option value="status">{groupLabel("status")}</option>
+                        <option value="stage">{groupLabel("stage")}</option>
+                        <option value="priority">{groupLabel("priority")}</option>
+                        <option value="importance">{groupLabel("importance")}</option>
+                    </select>
+                </div>
+                <div class="na-project-board__control">
+                    <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
+                    <select
+                        id="na-project-board-sort"
+                        class="na-select na-select--sm"
+                        onchange={handleSortChange}
+                        value={sortBy}
+                    >
+                        <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
+                        <option value="due">{i18n?.sortByDue || "Due date"}</option>
+                        <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
+                        <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
+                        {#each customFields.filter((field) => field.status === "active") as field (field.key)}
+                            <option value={`custom:${field.key}`}>{field.label}</option>
+                        {/each}
+                    </select>
+                    <NaIconButton
+                        compact
+                        symbol={sortAsc ? "iconUp" : "iconDown"}
+                        label={`${i18n?.projectBoardSortDirection || "Sort direction"}: ${sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}`}
+                        active={sortAsc}
+                        onclick={handleSortDirectionChange}
+                    />
+                </div>
+            </div>{/if}
     </div>
     {#if narrow}
         <div class="na-project-board__pager na-project-board__pager--narrow">
@@ -359,6 +424,11 @@
                             class="na-project-board__card"
                             role="listitem"
                             draggable={!busy && !touch}
+                            onpointerdown={handleTouchStart}
+                            onpointermove={handleTouchMove}
+                            onpointerup={handleTouchEnd}
+                            onpointercancel={handleTouchEnd}
+                            onclickcapture={handleCardClickCapture}
                             ondragstart={(event) => handleDragStart(task, event)}
                             ondragend={resetDrag}
                             ondragover={(event) => handleDragOver(column.key, event)}
@@ -384,6 +454,55 @@
         {/each}
     </div>
 </div>
+
+{#if settingsOpen}
+    <NaPageHost
+        title={i18n?.projectBoardSettings || "Board settings"}
+        backLabel={i18n.cancel}
+        onBack={() => (settingsOpen = false)}
+    >
+        {#snippet actions()}<NaButton variant="primary" onclick={applySettings}>{i18n.apply}</NaButton>{/snippet}
+        <div class="na-project-board__settings">
+            <label for="na-project-board-settings-group-by"
+                >{i18n?.projectBoardGroupBy || "Group by"}<select
+                    id="na-project-board-settings-group-by"
+                    class="na-select"
+                    bind:value={settingsGroupBy}
+                >
+                    <option value="status">{groupLabel("status")}</option>
+                    <option value="stage">{groupLabel("stage")}</option>
+                    <option value="priority">{groupLabel("priority")}</option>
+                    <option value="importance">{groupLabel("importance")}</option>
+                </select></label
+            >
+            <label for="na-project-board-settings-sort"
+                >{i18n?.sortBy || "Sort by"}<select
+                    id="na-project-board-settings-sort"
+                    class="na-select"
+                    bind:value={settingsSortBy}
+                >
+                    <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
+                    <option value="due">{i18n?.sortByDue || "Due date"}</option>
+                    <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
+                    <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
+                    {#each customFields.filter((field) => field.status === "active") as field (field.key)}
+                        <option value={`custom:${field.key}`}>{field.label}</option>
+                    {/each}
+                </select></label
+            >
+            <label for="na-project-board-settings-direction"
+                >{i18n?.projectBoardSortDirection || "Sort direction"}<select
+                    id="na-project-board-settings-direction"
+                    class="na-select"
+                    bind:value={settingsSortAsc}
+                >
+                    <option value={false}>{i18n?.sortDesc || "Descending"}</option>
+                    <option value={true}>{i18n?.sortAsc || "Ascending"}</option>
+                </select></label
+            >
+        </div>
+    </NaPageHost>
+{/if}
 
 {#if arrangingTask}
     <NaPageHost
@@ -434,6 +553,17 @@
         display: grid;
         gap: 8px;
     }
+    .na-project-board__settings {
+        display: grid;
+        gap: 16px;
+        padding: 16px;
+    }
+    .na-project-board__settings label {
+        display: grid;
+        gap: 8px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+    }
     .na-project-board {
         flex: 1 1 auto;
         min-height: 0;
@@ -482,6 +612,9 @@
         align-items: stretch;
         min-width: max-content;
         overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
     }
     .na-project-board__pager {
         display: none;
@@ -509,12 +642,23 @@
         font-weight: 700;
         text-transform: uppercase;
     }
+    .na-project-board__column > header span:first-child {
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        line-clamp: 2;
+        -webkit-line-clamp: 2;
+        overflow-wrap: anywhere;
+    }
     .na-project-board__cards {
         display: flex;
         flex-direction: column;
         gap: 5px;
         padding: 6px;
         min-height: 220px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     .na-project-board__card {
         cursor: grab;
@@ -543,12 +687,31 @@
     @container nextaction-app (max-width: 780px) {
         .na-project-board {
             min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
         .na-project-board__columns,
         .na-project-board__columns--narrow {
-            grid-template-columns: minmax(0, 1fr);
+            grid-template-columns: repeat(var(--na-project-board-column-count, 6), minmax(84vw, 1fr));
             min-width: 0;
-            overflow-x: hidden;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            flex: 1 1 auto;
+            min-height: 0;
+            touch-action: pan-x;
+        }
+        .na-project-board__column {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            scroll-snap-align: start;
+        }
+        .na-project-board__cards {
+            flex: 1 1 auto;
+            min-height: 0;
+            touch-action: pan-y;
         }
         .na-project-board__pager {
             display: grid;
