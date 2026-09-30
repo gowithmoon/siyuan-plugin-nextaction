@@ -76,6 +76,8 @@ export const REMINDER_MAX_VISIBLE = 5;
 export const REMINDER_MOBILE_PLAN_HORIZON_DAYS = 7;
 export const REMINDER_MOBILE_PLAN_HORIZON_MS = REMINDER_MOBILE_PLAN_HORIZON_DAYS * 24 * 60 * 60 * 1000;
 export const REMINDER_MOBILE_DATA_PATH = "mobile-notifications.json";
+export const REMINDER_MOBILE_PLAN_DATA_PATH = "mobile-notification-plan.json";
+export const REMINDER_IN_APP_DATA_PATH = "in-app-reminders.json";
 export const REMINDER_MOBILE_CHANNEL = "NextAction Reminders";
 
 // 可用音效 ID 列表

@@ -12,6 +12,7 @@ import {
     destroyMobileNotificationStore,
     initMobileNotificationStore,
     rebuildAllMobileNotifications,
+    recoverMissedMobileNotifications,
     scheduleMobileNotifications,
     sendTestSystemNotification,
     supportsSystemNotifications,
@@ -35,7 +36,7 @@ function futureTask(blockId: string, hour: number): TaskCacheEntry {
 }
 
 function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () => "mobile") {
-    let persisted: unknown = {};
+    const persistedByPath = new Map<string, unknown>([["mobile-notifications.json", {}]]);
     const sent: Array<{ id: number; options: Record<string, unknown> }> = [];
     const cancelled: number[] = [];
     const savedPaths: string[] = [];
@@ -52,12 +53,12 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
             reminderOffsetHours: "hours",
             reminderOffsetDays: "days",
         },
-        async loadData() {
-            return persisted;
+        async loadData(path: string) {
+            return persistedByPath.get(path);
         },
         async saveData(path, value) {
             savedPaths.push(path);
-            persisted = JSON.parse(JSON.stringify(value));
+            persistedByPath.set(path, JSON.parse(JSON.stringify(value)));
         },
     };
     let nextId = 1;
@@ -79,9 +80,13 @@ function createHarness(frontend: MobileNotificationRuntime["getFrontend"] = () =
         sent,
         cancelled,
         savedPaths,
-        readStorage: () => persisted,
+        readStorage: () => persistedByPath.get("mobile-notifications.json"),
         setStorage: (value: unknown) => {
-            persisted = value;
+            persistedByPath.set("mobile-notifications.json", value);
+        },
+        readPlanStorage: () => persistedByPath.get("mobile-notification-plan.json"),
+        setPlanStorage: (value: unknown) => {
+            persistedByPath.set("mobile-notification-plan.json", value);
         },
     };
 }
@@ -230,7 +235,9 @@ test("取消任务通知会取消全部 ID 并移除当前设备映射", async (
     const harness = createHarness();
     harness.setStorage({ "device-a": { "task-a": [41, 42] } });
     await initMobileNotificationStore(harness.plugin);
-    assert.deepEqual(harness.cancelled, [41, 42]);
+    // Restart keeps IDs registered with the operating system; they are not
+    // cancelled merely because the plugin was reopened.
+    assert.deepEqual(harness.cancelled, []);
 
     harness.setStorage({ "device-a": { "task-a": [41, 42] } });
     await scheduleMobileNotifications(futureTask("task-a", 10), NOW);
@@ -351,7 +358,11 @@ test("保存系统通知开关后重建完整集合，关闭后只清理系统�
     await applyMobileNotificationSettings(on, off, tasks, NOW);
     assert.deepEqual(harness.cancelled, [1, 2]);
     assert.deepEqual(harness.readStorage(), {});
-    assert.ok(harness.savedPaths.every((path) => path === "mobile-notifications.json"));
+    assert.ok(
+        harness.savedPaths.every((path) =>
+            ["mobile-notifications.json", "mobile-notification-plan.json"].includes(path),
+        ),
+    );
 });
 
 test("修改全局提前量重新校准任务集合，无关设置不触碰已注册通知", async () => {
@@ -423,6 +434,73 @@ test("启用系统通知只安排未来事件，不补发过去触发点", async
 
     await applyMobileNotificationSettings(off, on, [past], NOW);
 
+    assert.deepEqual(harness.sent, []);
+});
+
+// Regression: 插件恢复时只补发上次计划中未成功登记且已错过的事件；
+// 已成功登记的事件由操作系统继续负责，不能因为重启再次发送。
+test("恢复系统通知只补发未登记事件并按任务去重", async () => {
+    const harness = createHarness(() => "desktop");
+    const task = taskFactory("recoverable", {
+        due: "2030-01-01T11:00",
+        reminder: JSON.stringify([
+            { type: "relative", minutes: 120 },
+            { type: "relative", minutes: 60 },
+        ]),
+    });
+    harness.setPlanStorage({
+        "device-a": {
+            recoverable: {
+                content: "",
+                events: [
+                    {
+                        triggerTimeMs: new Date(2030, 0, 1, 9).getTime(),
+                        kind: "relative",
+                        minutesBefore: 120,
+                        baseDateStr: "2030-01-01",
+                        id: 88,
+                    },
+                    {
+                        triggerTimeMs: new Date(2030, 0, 1, 10).getTime(),
+                        kind: "relative",
+                        minutesBefore: 60,
+                        baseDateStr: "2030-01-01",
+                    },
+                ],
+            },
+        },
+    });
+    await initMobileNotificationStore(harness.plugin);
+    await recoverMissedMobileNotifications([task], new Date(2030, 0, 1, 10, 30).getTime());
+    assert.equal(harness.sent.length, 1);
+    assert.match(String(harness.sent[0].options.body), /1 hour/);
+});
+
+// Regression: 停止期间编辑任务正文后，旧计划不得在恢复时补发。
+test("恢复系统通知跳过正文已变化的旧计划", async () => {
+    const harness = createHarness(() => "desktop");
+    const task = taskFactory("edited-task", {
+        title: "新标题",
+        due: "2030-01-01T11:00",
+        reminder: '[{"type":"relative","minutes":60}]',
+    });
+    harness.setPlanStorage({
+        "device-a": {
+            "edited-task": {
+                content: "旧标题",
+                events: [
+                    {
+                        triggerTimeMs: new Date(2030, 0, 1, 10).getTime(),
+                        kind: "relative",
+                        minutesBefore: 60,
+                        baseDateStr: "2030-01-01",
+                    },
+                ],
+            },
+        },
+    });
+    await initMobileNotificationStore(harness.plugin);
+    await recoverMissedMobileNotifications([task], new Date(2030, 0, 1, 10, 30).getTime());
     assert.deepEqual(harness.sent, []);
 });
 
@@ -655,6 +733,9 @@ test("重启取消失败仍重建，重复初始化保持幂等且保留其他�
     await rebuildAllMobileNotifications([futureTask("current", 10)], NOW);
     await initMobileNotificationStore(h.plugin);
     await rebuildAllMobileNotifications([futureTask("current", 10)], NOW);
-    assert.deepEqual(operations, ["cancel:41", "cancel:42", "send"]);
-    assert.deepEqual(h.readStorage(), { "device-a": { current: [99] }, "device-b": { remote: [88] } });
+    assert.deepEqual(operations, ["send"]);
+    assert.deepEqual(h.readStorage(), {
+        "device-a": { old: [41, 42], current: [99] },
+        "device-b": { remote: [88] },
+    });
 });

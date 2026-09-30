@@ -8,6 +8,7 @@ import { taskStore, pendingReminderCount } from "../src/frontend/stores/task-sto
 import {
     buildDedupKey,
     destroyReminderStore,
+    dismissAllReminders,
     dismissReminder,
     initReminderStore,
     notificationQueue,
@@ -33,7 +34,12 @@ test("应用内模式投递卡片，关闭仅处理当前卡片且切换方式�
     taskStore.applyUpdate(task);
     taskStore.applyUpdate(secondTask);
     rebuildReminderQueue();
-    assert.ok(get(notificationQueue).some((entry) => entry.blockId === task.blockId && entry.minutesBefore === 1500));
+    // Settings/task changes are not a recovery boundary: an already missed
+    // trigger is not retroactively delivered.
+    assert.equal(
+        get(notificationQueue).some((entry) => entry.blockId === task.blockId),
+        false,
+    );
     // Regression: 应用内提醒曾额外生成与具体提醒事件无关的任务概览卡片。
     assert.equal(
         get(notificationQueue).some((entry) => String(entry.type) === "summary"),
@@ -45,7 +51,10 @@ test("应用内模式投递卡片，关闭仅处理当前卡片且切换方式�
         get(notificationQueue).some((entry) => entry.blockId === task.blockId),
         false,
     );
-    assert.ok(get(notificationQueue).some((entry) => entry.blockId === secondTask.blockId));
+    assert.equal(
+        get(notificationQueue).some((entry) => entry.blockId === secondTask.blockId),
+        false,
+    );
     taskStore.applySettingsUpdate({
         ...DEFAULT_SETTINGS,
         reminderSettings: {
@@ -103,6 +112,7 @@ test("系统通知和不提醒模式不进入应用内队列，也不播放插�
     const tasks = [
         taskFactory("absolute", { status: "inbox", reminder: '[{"type":"absolute","time":"2030-01-01T08:58"}]' }),
         taskFactory("review", { status: "inbox", reviewDate: "2030-01-01" }),
+        taskFactory("inherited", { status: "inbox", due: "2030-01-01T10:00", reminder: "" }),
     ];
     try {
         taskStore.resetSync();
@@ -113,6 +123,8 @@ test("系统通知和不提醒模式不进入应用内队列，也不播放插�
                 deliveryMode: "system",
                 enabled: false,
                 systemNotificationEnabled: true,
+                defaultOffsets: [120],
+                useGlobalDefaultReminders: true,
             },
         });
         for (const task of tasks) taskStore.applyUpdate(task);
@@ -190,12 +202,115 @@ test("应用内卡片按现有设置播放音效，关闭不写入提醒历史",
         const item = get(notificationQueue)[0];
         dismissReminder(buildDedupKey(item.blockId, item.baseDateStr, item.minutesBefore, item.type));
         assert.deepEqual(get(notificationQueue), []);
-        assert.equal(saveCalls, 0);
+        assert.ok(saveCalls > 0);
     } finally {
         destroyReminderStore();
         taskStore.applyRemove(task.blockId);
         taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
         if (originalAudio) Object.defineProperty(globalThis, "Audio", originalAudio);
         else Reflect.deleteProperty(globalThis, "Audio");
+    }
+});
+
+// Regression: 只有上次运行已经保存过的提醒计划才允许在启动时补发；
+// 启动后新建任务或保存设置形成的过去触发点不补发。
+test("启动恢复补发旧计划，设置和任务变更不补发", async (context) => {
+    const now = new Date(2030, 0, 1, 10, 30).getTime();
+    context.mock.timers.enable({ apis: ["Date", "setInterval"], now });
+    const task = taskFactory("recover-in-app", {
+        due: "2030-01-01T11:00",
+        reminder: '[{"type":"relative","minutes":120}]',
+    });
+    const plugin = {
+        i18n: {},
+        async loadData() {
+            return {
+                mode: "in-app",
+                updatedAtMs: new Date(2030, 0, 1, 8).getTime(),
+                events: [
+                    {
+                        blockId: task.blockId,
+                        title: task.title,
+                        triggerTime: new Date(2030, 0, 1, 9).getTime(),
+                        type: "due",
+                        minutesBefore: 120,
+                        baseDateStr: "2030-01-01",
+                        dueTime: new Date(2030, 0, 1, 11).getTime(),
+                    },
+                ],
+            };
+        },
+        async saveData() {},
+    } as unknown as Plugin;
+    try {
+        taskStore.applySettingsUpdate({
+            ...DEFAULT_SETTINGS,
+            reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, deliveryMode: "in-app", soundEnabled: false },
+        });
+        taskStore.applyUpdate(task);
+        await initReminderStore(plugin);
+        assert.deepEqual(
+            get(notificationQueue).map((entry) => entry.blockId),
+            [task.blockId],
+        );
+
+        dismissAllReminders();
+        taskStore.applyUpdate({
+            ...task,
+            blockId: "new-past-task",
+            reminder: '[{"type":"absolute","time":"2030-01-01T09:30"}]',
+        });
+        rebuildReminderQueue();
+        assert.deepEqual(get(notificationQueue), []);
+    } finally {
+        destroyReminderStore();
+        taskStore.applyRemove(task.blockId);
+        taskStore.applyRemove("new-past-task");
+        taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
+    }
+});
+
+// Regression: 停止期间编辑任务标题后，应用内旧计划不得在恢复时补发。
+test("应用内恢复跳过标题已变化的旧计划", async (context) => {
+    const now = new Date(2030, 0, 1, 10, 30).getTime();
+    context.mock.timers.enable({ apis: ["Date", "setInterval"], now });
+    const task = taskFactory("edited-in-app", {
+        title: "新标题",
+        due: "2030-01-01T11:00",
+        reminder: '[{"type":"relative","minutes":120}]',
+    });
+    const plugin = {
+        i18n: {},
+        async loadData() {
+            return {
+                mode: "in-app",
+                updatedAtMs: new Date(2030, 0, 1, 8).getTime(),
+                events: [
+                    {
+                        blockId: task.blockId,
+                        title: "旧标题",
+                        triggerTime: new Date(2030, 0, 1, 9).getTime(),
+                        type: "due",
+                        minutesBefore: 120,
+                        baseDateStr: "2030-01-01",
+                        dueTime: new Date(2030, 0, 1, 11).getTime(),
+                    },
+                ],
+            };
+        },
+        async saveData() {},
+    } as unknown as Plugin;
+    try {
+        taskStore.applySettingsUpdate({
+            ...DEFAULT_SETTINGS,
+            reminderSettings: { ...DEFAULT_SETTINGS.reminderSettings, deliveryMode: "in-app", soundEnabled: false },
+        });
+        taskStore.applyUpdate(task);
+        await initReminderStore(plugin);
+        assert.deepEqual(get(notificationQueue), []);
+    } finally {
+        destroyReminderStore();
+        taskStore.applyRemove(task.blockId);
+        taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
     }
 });

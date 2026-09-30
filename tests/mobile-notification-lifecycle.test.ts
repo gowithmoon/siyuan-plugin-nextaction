@@ -32,7 +32,7 @@ function harness() {
     const events = new Map<string, () => void>();
     const sent: string[] = [];
     const cancelled: number[] = [];
-    let persisted: unknown = { default: { old: [42] } };
+    const persistedByPath = new Map<string, unknown>([["mobile-notifications.json", { default: { old: [42] } }]]);
     let nextId = 100;
     configureMobileNotificationRuntime({
         getFrontend: () => "mobile",
@@ -56,16 +56,16 @@ function harness() {
                 if (events.get(name) === handler) events.delete(name);
             },
         },
-        async loadData() {
-            return persisted;
+        async loadData(path: string) {
+            return persistedByPath.get(path);
         },
-        async saveData(_path: string, value: unknown) {
-            persisted = structuredClone(value);
+        async saveData(path: string, value: unknown) {
+            persistedByPath.set(path, structuredClone(value));
         },
     } as unknown as Plugin;
     const lifecycle = new MobileNotificationLifecycle(plugin);
     lifecycle.start();
-    return { lifecycle, events, sent, cancelled, readStorage: () => persisted };
+    return { lifecycle, events, sent, cancelled, readStorage: () => persistedByPath.get("mobile-notifications.json") };
 }
 afterEach(() => {
     taskStore.disposeSync();
@@ -95,7 +95,7 @@ test("等待设置及权威快照后才清理重启 ID，加载失败保留旧�
         fail = false;
         await taskStore.loadTasks();
         await h.lifecycle.reconcile();
-        assert.deepEqual(h.cancelled, [42]);
+        assert.deepEqual(h.cancelled, []);
         assert.equal(h.sent.length, 1);
         await h.lifecycle.reconcile();
         assert.equal(h.sent.length, 1);
@@ -136,7 +136,7 @@ test("已提交 V2 增量更新通知，重复 revision 和无关字段不调平
         taskStore.applyChangeSetV2(delta);
         await tick();
         assert.deepEqual(h.sent, ["Task", "更新标题", "Task"]);
-        assert.deepEqual(h.cancelled, [42, 100]);
+        assert.deepEqual(h.cancelled, [100]);
         taskStore.applyChangeSetV2(delta);
         taskStore.applyChangeSetV2({
             ...delta,
@@ -154,7 +154,7 @@ test("已提交 V2 增量更新通知，重复 revision 和无关字段不调平
             deletedBlockIds: ["task-a", "new-task", "unknown"],
         });
         await tick();
-        assert.deepEqual(h.cancelled, [42, 100, 101, 102]);
+        assert.deepEqual(h.cancelled, [100, 101, 102]);
     } finally {
         h.lifecycle.dispose();
     }
@@ -180,7 +180,7 @@ test("同步与数据回调校准当前集合，过滤原因，销毁解绑", as
         } as unknown as KernelBridge);
         await taskStore.loadTasks();
         await h.lifecycle.handleDataChanged("overwrite");
-        assert.deepEqual(h.cancelled, [42, 100]);
+        assert.deepEqual(h.cancelled, [100]);
         h.lifecycle.dispose();
         assert.equal(h.events.has("sync-end"), false);
         taskStore.applyUpdate(task("after-dispose"));
@@ -209,7 +209,7 @@ test("设置加载失败时保持未初始化，恢复后才能重建", async ()
         assert.deepEqual(h.cancelled, []);
         await loadTasks();
         await h.lifecycle.reconcile();
-        assert.deepEqual(h.cancelled, [42]);
+        assert.deepEqual(h.cancelled, []);
         assert.equal(h.sent.length, 1);
     } finally {
         h.lifecycle.dispose();
@@ -242,7 +242,7 @@ test("同步事件等待在途快照，旧加载返回不触发初始化", async
         resolveSnapshot({ schema: 2, streamId: "new", revision: 0, tasks: [task()] });
         await current;
         await h.lifecycle.reconcile();
-        assert.deepEqual(h.cancelled, [42]);
+        assert.deepEqual(h.cancelled, []);
         assert.equal(h.sent.length, 1);
     } finally {
         h.lifecycle.dispose();
@@ -387,20 +387,15 @@ test("初始化等待期间任务加载失败保留旧通知，成功恢复后�
         assert.deepEqual(calls, []);
         await loadTasks();
         await lifecycle.reconcile();
-        assert.deepEqual(calls, ["cancel:42", "send"]);
+        assert.deepEqual(calls, ["send"]);
     } finally {
         lifecycle.dispose();
     }
 });
 
-// Regression: 原生取消一旦开始，任务重载失败也必须用已确认快照补齐通知。
-test("首次取消期间任务加载失败，仍按清理前权威快照完成注册", async () => {
+// Regression: 重启恢复不会先取消操作系统中已经登记的通知。
+test("首次恢复期间任务重载失败也不取消已有登记", async () => {
     await loadTasks();
-    let releaseCancel!: () => void;
-    let started!: () => void;
-    const cancelling = new Promise<void>((resolve) => {
-        started = resolve;
-    });
     const calls: string[] = [];
     configureMobileNotificationRuntime({
         getFrontend: () => "mobile",
@@ -411,10 +406,6 @@ test("首次取消期间任务加载失败，仍按清理前权威快照完成�
             },
             cancelNotification(id) {
                 calls.push(`cancel:${id}`);
-                started();
-                return new Promise<void>((resolve) => {
-                    releaseCancel = resolve;
-                });
             },
         },
     });
@@ -429,16 +420,14 @@ test("首次取消期间任务加载失败，仍按清理前权威快照完成�
     lifecycle.start();
     try {
         const pending = lifecycle.reconcile();
-        await cancelling;
         taskStore.setBridge({
             getTaskSnapshotV2: async () => {
                 throw new Error("取消期间加载失败");
             },
         } as unknown as KernelBridge);
         await taskStore.loadTasks();
-        releaseCancel();
         await pending;
-        assert.deepEqual(calls, ["cancel:42", "send"]);
+        assert.deepEqual(calls, []);
     } finally {
         lifecycle.dispose();
     }

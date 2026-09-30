@@ -3,6 +3,7 @@ import type { Plugin } from "siyuan";
 import {
     REMINDER_MOBILE_CHANNEL,
     REMINDER_MOBILE_DATA_PATH,
+    REMINDER_MOBILE_PLAN_DATA_PATH,
     REMINDER_MOBILE_PLAN_HORIZON_MS,
 } from "../../shared/constants";
 import type { TaskCacheEntry } from "../../shared/types";
@@ -13,6 +14,7 @@ import type { TaskCollectionChanges } from "./task-sync-reducer";
 import {
     buildPlanSnapshot,
     calculateNotificationTriggers,
+    calculateMissedNotificationTriggers,
     diffPlanSnapshot,
     type MobileNotificationTrigger,
     type MobilePlanSnapshot,
@@ -33,6 +35,19 @@ export interface MobileNotificationRuntime {
     };
 }
 
+interface StoredNotificationEvent {
+    triggerTimeMs: number;
+    kind: MobileNotificationTrigger["kind"];
+    minutesBefore: number;
+    baseDateStr: string;
+    id?: number;
+}
+
+interface StoredTaskNotifications {
+    content: string;
+    events: StoredNotificationEvent[];
+}
+
 interface MobileNotificationStorage {
     readonly [deviceId: string]: Record<string, number[]>;
 }
@@ -45,8 +60,10 @@ interface SiyuanWindow {
 
 let pluginRef: Plugin | null = null;
 let storage: MobileNotificationStorage = {};
+let planStorage: Record<string, Record<string, StoredTaskNotifications>> = {};
 let currentPlanSnapshot: Map<string, readonly number[]> = new Map();
 const registeredContents = new Map<string, string>();
+const incompletePlans = new Set<string>();
 let initialized = false;
 let initialization: Promise<void> | null = null;
 let lifecycleGeneration = 0;
@@ -126,6 +143,51 @@ async function saveStorageUnlocked(): Promise<void> {
     }
 }
 
+function normalizePlanStorage(value: unknown): Record<string, Record<string, StoredTaskNotifications>> {
+    if (!isRecord(value)) return {};
+    const result: Record<string, Record<string, StoredTaskNotifications>> = {};
+    for (const [deviceId, rawDeviceStorage] of Object.entries(value)) {
+        if (!isRecord(rawDeviceStorage)) continue;
+        const deviceStorage: Record<string, StoredTaskNotifications> = {};
+        for (const [blockId, rawPlan] of Object.entries(rawDeviceStorage)) {
+            if (!isRecord(rawPlan) || typeof rawPlan.content !== "string" || !Array.isArray(rawPlan.events)) continue;
+            const events = rawPlan.events.filter((event): event is StoredNotificationEvent => {
+                if (!isRecord(event)) return false;
+                return (
+                    typeof event.triggerTimeMs === "number" &&
+                    Number.isFinite(event.triggerTimeMs) &&
+                    (event.kind === "absolute" || event.kind === "relative" || event.kind === "review") &&
+                    typeof event.minutesBefore === "number" &&
+                    Number.isFinite(event.minutesBefore) &&
+                    typeof event.baseDateStr === "string" &&
+                    (event.id === undefined || (typeof event.id === "number" && Number.isFinite(event.id)))
+                );
+            });
+            if (events.length > 0) deviceStorage[blockId] = { content: rawPlan.content, events };
+        }
+        if (Object.keys(deviceStorage).length > 0) result[deviceId] = deviceStorage;
+    }
+    return result;
+}
+
+async function loadPlanStorageUnlocked(): Promise<void> {
+    if (!pluginRef) return;
+    try {
+        planStorage = normalizePlanStorage(await pluginRef.loadData(REMINDER_MOBILE_PLAN_DATA_PATH));
+    } catch {
+        planStorage = {};
+    }
+}
+
+async function savePlanStorageUnlocked(): Promise<void> {
+    if (!pluginRef) return;
+    try {
+        await pluginRef.saveData(REMINDER_MOBILE_PLAN_DATA_PATH, planStorage);
+    } catch (error) {
+        console.error("[NextAction] save mobile notification plan failed:", error);
+    }
+}
+
 function isCurrentGeneration(generation: number): boolean {
     return generation === lifecycleGeneration && pluginRef !== null;
 }
@@ -157,6 +219,34 @@ function removeCurrentDeviceStorage(): void {
     storage = next;
 }
 
+function currentDevicePlanStorage(): Record<string, StoredTaskNotifications> {
+    const deviceId = getDeviceId();
+    const current = planStorage[deviceId];
+    if (current) return current;
+    const created: Record<string, StoredTaskNotifications> = {};
+    planStorage = { ...planStorage, [deviceId]: created };
+    return created;
+}
+
+function hydrateLoadedPlan(nowMs: number): void {
+    currentPlanSnapshot = new Map();
+    registeredContents.clear();
+    incompletePlans.clear();
+    const deviceStorage = currentDevicePlanStorage();
+    for (const [blockId, plan] of Object.entries(deviceStorage)) {
+        const horizon = nowMs + REMINDER_MOBILE_PLAN_HORIZON_MS;
+        const inWindow = plan.events.filter((event) => event.triggerTimeMs > nowMs && event.triggerTimeMs < horizon);
+        const registered = inWindow.filter((event) => event.id !== undefined);
+        if (registered.length > 0)
+            currentPlanSnapshot.set(
+                blockId,
+                registered.map((event) => event.triggerTimeMs),
+            );
+        if (inWindow.some((event) => event.id === undefined)) incompletePlans.add(blockId);
+        if (registered.length > 0) registeredContents.set(blockId, plan.content);
+    }
+}
+
 async function cancelNotificationId(id: number): Promise<void> {
     try {
         const runtime = await getPlatformRuntime();
@@ -167,11 +257,16 @@ async function cancelNotificationId(id: number): Promise<void> {
     }
 }
 
-function notificationContent(task: TaskCacheEntry, nowMs: number, reminderSettings?: ReminderSettings): string {
+function notificationContent(task: TaskCacheEntry, reminderSettings?: ReminderSettings): string {
     return JSON.stringify(
-        calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, reminderSettings).map((trigger) => [
+        // Use a stable all-time trigger set so elapsed time does not invalidate a
+        // persisted plan before recovery has a chance to compare edited content.
+        calculateNotificationTriggers(task, 0, Number.POSITIVE_INFINITY, reminderSettings).map((trigger) => [
             trigger.title,
+            trigger.triggerTimeMs,
             trigger.kind,
+            trigger.minutesBefore,
+            trigger.baseDateStr,
             buildNotificationTitle(trigger),
             buildNotificationBody(trigger),
         ]),
@@ -270,6 +365,7 @@ function buildNotificationBody(trigger: MobileNotificationTrigger): string {
 async function sendNotificationForTrigger(
     trigger: MobileNotificationTrigger,
     generation: number,
+    nowMs = Date.now(),
 ): Promise<number | null> {
     const settings = get(taskStore).settings?.reminderSettings;
     if (!isCurrentGeneration(generation) || !usesSystemNotifications(settings)) return null;
@@ -280,7 +376,7 @@ async function sendNotificationForTrigger(
         const id = await runtime.platformUtils.sendNotification({
             title: buildNotificationTitle(trigger),
             body: buildNotificationBody(trigger),
-            delayInSeconds: Math.max(0, Math.floor((trigger.triggerTimeMs - Date.now()) / 1000)),
+            delayInSeconds: Math.max(0, Math.floor((trigger.triggerTimeMs - nowMs) / 1000)),
             channel: REMINDER_MOBILE_CHANNEL,
         });
         if (!isCurrentGeneration(generation)) {
@@ -315,18 +411,28 @@ export async function sendTestSystemNotification(title: string, body: string): P
     }
 }
 
+function storedEventKey(
+    event: Pick<StoredNotificationEvent, "triggerTimeMs" | "kind" | "minutesBefore" | "baseDateStr">,
+): string {
+    return `${event.triggerTimeMs}|${event.kind}|${event.minutesBefore}|${event.baseDateStr}`;
+}
+
 async function cancelBlockUnlocked(blockId: string, generation: number): Promise<void> {
     if (!isCurrentGeneration(generation)) return;
     const deviceStorage = currentDeviceStorage();
+    const planDeviceStorage = currentDevicePlanStorage();
     const ids = deviceStorage[blockId];
-    if (!ids) return;
-    await Promise.all(ids.map((id) => cancelNotificationId(id)));
+    if (!ids && !planDeviceStorage[blockId]) return;
+    if (ids) await Promise.all(ids.map((id) => cancelNotificationId(id)));
     if (!isCurrentGeneration(generation)) return;
     delete deviceStorage[blockId];
+    delete planDeviceStorage[blockId];
     registeredContents.delete(blockId);
     await saveStorageUnlocked();
+    await savePlanStorageUnlocked();
     if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map([...currentPlanSnapshot].filter(([id]) => id !== blockId));
+    incompletePlans.delete(blockId);
 }
 
 async function scheduleTaskUnlocked(
@@ -338,36 +444,56 @@ async function scheduleTaskUnlocked(
     await cancelBlockUnlocked(task.blockId, generation);
     if (!isCurrentGeneration(generation)) return;
     const triggers = calculateNotificationTriggers(task, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, reminderSettings);
-    const ids: number[] = [];
+    const allFutureTriggers = calculateNotificationTriggers(task, nowMs, Number.POSITIVE_INFINITY, reminderSettings);
     const successfulTriggerTimes: number[] = [];
+    const registeredIds = new Map<string, number>();
     for (const trigger of triggers) {
-        const id = await sendNotificationForTrigger(trigger, generation);
+        const id = await sendNotificationForTrigger(trigger, generation, nowMs);
         if (!isCurrentGeneration(generation)) {
-            await Promise.all(ids.map((registeredId) => cancelNotificationId(registeredId)));
+            await Promise.all([...registeredIds.values()].map((registeredId) => cancelNotificationId(registeredId)));
             return;
         }
         if (id !== null) {
-            ids.push(id);
             successfulTriggerTimes.push(trigger.triggerTimeMs);
+            registeredIds.set(storedEventKey(trigger), id);
         }
     }
     if (!isCurrentGeneration(generation)) return;
     const deviceStorage = currentDeviceStorage();
-    if (ids.length > 0) {
-        deviceStorage[task.blockId] = ids;
+    const planDeviceStorage = currentDevicePlanStorage();
+    if (registeredIds.size > 0) deviceStorage[task.blockId] = [...registeredIds.values()];
+    else delete deviceStorage[task.blockId];
+    if (allFutureTriggers.length > 0) {
+        planDeviceStorage[task.blockId] = {
+            content: notificationContent(task, reminderSettings),
+            events: allFutureTriggers.map((trigger) => {
+                const id = registeredIds.get(storedEventKey(trigger));
+                return {
+                    triggerTimeMs: trigger.triggerTimeMs,
+                    kind: trigger.kind,
+                    minutesBefore: trigger.minutesBefore,
+                    baseDateStr: trigger.baseDateStr,
+                    ...(id === undefined ? {} : { id }),
+                };
+            }),
+        };
     } else {
         delete deviceStorage[task.blockId];
+        delete planDeviceStorage[task.blockId];
     }
     await saveStorageUnlocked();
+    await savePlanStorageUnlocked();
     if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map(currentPlanSnapshot);
     if (successfulTriggerTimes.length > 0) {
         currentPlanSnapshot.set(task.blockId, successfulTriggerTimes);
-        registeredContents.set(task.blockId, notificationContent(task, nowMs, reminderSettings));
+        registeredContents.set(task.blockId, notificationContent(task, reminderSettings));
     } else {
         currentPlanSnapshot.delete(task.blockId);
         registeredContents.delete(task.blockId);
     }
+    if (successfulTriggerTimes.length < triggers.length) incompletePlans.add(task.blockId);
+    else incompletePlans.delete(task.blockId);
 }
 
 async function cancelCurrentDeviceUnlocked(generation: number): Promise<void> {
@@ -377,10 +503,18 @@ async function cancelCurrentDeviceUnlocked(generation: number): Promise<void> {
     await Promise.all(ids.map((id) => cancelNotificationId(id)));
     if (!isCurrentGeneration(generation)) return;
     removeCurrentDeviceStorage();
+    const deviceId = getDeviceId();
+    if (planStorage[deviceId]) {
+        const next = { ...planStorage };
+        delete next[deviceId];
+        planStorage = next;
+    }
     await saveStorageUnlocked();
+    await savePlanStorageUnlocked();
     if (!isCurrentGeneration(generation)) return;
     currentPlanSnapshot = new Map();
     registeredContents.clear();
+    incompletePlans.clear();
 }
 
 export async function initMobileNotificationStore(
@@ -398,12 +532,11 @@ export async function initMobileNotificationStore(
         const loaded = await loadStorageUnlocked();
         if (!isCurrentGeneration(generation)) return;
         storage = loaded;
+        await loadPlanStorageUnlocked();
         const runtime = await getPlatformRuntime().catch(() => null);
         if (!isCurrentGeneration(generation)) return;
         if (!canInitialize()) return;
-        if (runtime && shouldScheduleSystemNotification(runtime)) {
-            await cancelCurrentDeviceUnlocked(generation);
-        }
+        hydrateLoadedPlan(Date.now());
         if (!isCurrentGeneration(generation)) return;
         initialized = true;
     });
@@ -412,12 +545,56 @@ export async function initMobileNotificationStore(
     return generation === lifecycleGeneration && initialized;
 }
 
+/** Replay only events from the previous plan that were not successfully registered. */
+export async function recoverMissedMobileNotifications(
+    tasks: readonly TaskCacheEntry[],
+    nowMs = Date.now(),
+    reminderSettings: ReminderSettings = get(taskStore).settings.reminderSettings,
+): Promise<void> {
+    if (!initialized) return;
+    await withStorageLock(async (generation) => {
+        if (!isCurrentGeneration(generation) || !(await canScheduleSystemNotification())) return;
+        const deviceStorage = currentDevicePlanStorage();
+        let changed = false;
+        for (const task of tasks) {
+            const plan = deviceStorage[task.blockId];
+            if (!plan) continue;
+            // A changed notification body means the persisted event belongs to
+            // the old task state and must not be replayed after restart.
+            if (plan.content && plan.content !== notificationContent(task, reminderSettings)) continue;
+            const currentMissed = calculateMissedNotificationTriggers(task, nowMs, reminderSettings);
+            const currentByKey = new Map(currentMissed.map((trigger) => [storedEventKey(trigger), trigger]));
+            const missedStored = plan.events
+                .map((event) => ({ event, trigger: currentByKey.get(storedEventKey(event)) }))
+                .filter((item): item is { event: StoredNotificationEvent; trigger: MobileNotificationTrigger } => {
+                    return !!item.trigger && item.event.triggerTimeMs <= nowMs;
+                })
+                .sort((a, b) => a.trigger.triggerTimeMs - b.trigger.triggerTimeMs);
+            const latest = missedStored[missedStored.length - 1];
+            if (latest && latest.event.id === undefined) {
+                const id = await sendNotificationForTrigger(latest.trigger, generation, nowMs);
+                if (id === null) continue;
+            }
+            const nextEvents = plan.events.filter((event) => event.triggerTimeMs > nowMs);
+            if (nextEvents.length > 0) {
+                plan.events = nextEvents;
+            } else {
+                delete deviceStorage[task.blockId];
+            }
+            changed = true;
+        }
+        if (changed) await savePlanStorageUnlocked();
+    });
+}
+
 export function destroyMobileNotificationStore(): void {
     lifecycleGeneration++;
     pluginRef = null;
     storage = {};
+    planStorage = {};
     currentPlanSnapshot = new Map();
     registeredContents.clear();
+    incompletePlans.clear();
     initialized = false;
     initialization = null;
 }
@@ -487,14 +664,22 @@ export async function rebuildAllMobileNotifications(
     if (!initialized) return;
     const effectiveReminderSettings = reminderSettings ?? get(taskStore).settings.reminderSettings;
     await withStorageLock(async (generation) => {
-        if (!(await canScheduleSystemNotification()) || !isCurrentGeneration(generation)) return;
+        if (!isCurrentGeneration(generation)) return;
+        if (!(await canScheduleSystemNotification())) {
+            const runtime = await getPlatformRuntime().catch(() => null);
+            if (runtime && shouldScheduleSystemNotification(runtime)) await cancelCurrentDeviceUnlocked(generation);
+            return;
+        }
         const next = buildPlanSnapshot(tasks, nowMs, REMINDER_MOBILE_PLAN_HORIZON_MS, effectiveReminderSettings);
         const diff = diffPlanSnapshot(currentPlanSnapshot, next);
         const taskById = new Map(tasks.map((task) => [task.blockId, task]));
         diff.unchanged = diff.unchanged.filter((blockId) => {
+            if (incompletePlans.has(blockId)) {
+                diff.toRebuild.push(blockId);
+                return false;
+            }
             const task = taskById.get(blockId)!;
-            if (registeredContents.get(blockId) === notificationContent(task, nowMs, effectiveReminderSettings))
-                return true;
+            if (registeredContents.get(blockId) === notificationContent(task, effectiveReminderSettings)) return true;
             diff.toRebuild.push(blockId);
             return false;
         });

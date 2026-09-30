@@ -6,6 +6,7 @@ import {
     destroyMobileNotificationStore,
     initMobileNotificationStore,
     onTasksChangedV2,
+    recoverMissedMobileNotifications,
     rebuildAllMobileNotifications,
 } from "../stores/mobile-notification-store";
 
@@ -48,7 +49,9 @@ export class MobileNotificationLifecycle {
             if (!taskStore.isReady()) return;
             const generation = this.generation;
             let initialTasks: readonly TaskCacheEntry[] | undefined;
+            let recovering = false;
             if (!this.initialized) {
+                recovering = true;
                 const ready = await initMobileNotificationStore(this.plugin, () => {
                     if (!taskStore.isReady()) return false;
                     initialTasks = get(taskStore).allTasks;
@@ -58,10 +61,12 @@ export class MobileNotificationLifecycle {
                 this.initialized = ready;
                 if (!ready) return;
             }
-            // Once old IDs are cancelled, finish replacing them even if a later load fails.
             // Successful newer snapshots enqueue their own reconciliation.
             const tasks = taskStore.isReady() ? get(taskStore).allTasks : initialTasks;
-            if (tasks) await rebuildAllMobileNotifications(tasks);
+            if (tasks) {
+                if (recovering) await recoverMissedMobileNotifications(tasks);
+                await rebuildAllMobileNotifications(tasks);
+            }
         });
     }
 

@@ -18,6 +18,7 @@ export class FrontendRuntime {
     private calibrationTimer: ReturnType<typeof setInterval> | null = null;
     private disposed = false;
     private generation = 0;
+    private reminderInitialized = false;
     private readonly mobileNotifications: MobileNotificationLifecycle;
     private readonly tasksChangedV2Handler = (...params: unknown[]) => {
         taskStore.applyChangeSetV2(params[0]);
@@ -53,7 +54,6 @@ export class FrontendRuntime {
             i18n: asI18nStrings(this.plugin.i18n),
             getCurrentDocumentId: this.getCurrentDocumentId,
         });
-        void initReminderStore(this.plugin);
         this.notificationHost = mountSvelteComponent(NotificationHost, {
             target: document.body,
             props: { i18n: this.plugin.i18n, bridge },
@@ -81,6 +81,7 @@ export class FrontendRuntime {
         taskStore.disposeSync();
         this.plugin.eventBus.off("kernel-plugin-state-change", this.kernelStateHandler);
         destroyReminderStore();
+        this.reminderInitialized = false;
         this.mobileNotifications.dispose();
         void this.notificationHost?.dispose();
         this.notificationHost = undefined;
@@ -92,7 +93,13 @@ export class FrontendRuntime {
         await taskStore.loadSettings();
         if (this.disposed || generation !== this.generation) return;
         await taskStore.loadTasks();
-        if (!this.disposed && generation === this.generation) await this.mobileNotifications.reconcile();
+        if (!this.disposed && generation === this.generation) {
+            if (!this.reminderInitialized) {
+                await initReminderStore(this.plugin);
+                this.reminderInitialized = true;
+            }
+            await this.mobileNotifications.reconcile();
+        }
     }
 
     handleDataChanged(reason?: string): void {

@@ -43,13 +43,7 @@ function createTrigger(
     };
 }
 
-/** Calculate every future trigger for one task in the requested planning window. */
-export function calculateNotificationTriggers(
-    task: TaskCacheEntry,
-    nowMs: number,
-    daysLimitMs: number = REMINDER_MOBILE_PLAN_HORIZON_MS,
-    reminderSettings?: ReminderSettings,
-): MobileNotificationTrigger[] {
+function calculateAllTriggers(task: TaskCacheEntry, reminderSettings?: ReminderSettings): MobileNotificationTrigger[] {
     if (task.status === "done" || task.status === "someday") return [];
 
     const triggers: MobileNotificationTrigger[] = [];
@@ -57,7 +51,7 @@ export function calculateNotificationTriggers(
     for (const item of items) {
         if (item.type === "absolute") {
             const triggerTimeMs = new Date((item as ReminderAbsolute).time).getTime();
-            if (isWithinPlanWindow(triggerTimeMs, nowMs, daysLimitMs)) {
+            if (Number.isFinite(triggerTimeMs)) {
                 triggers.push(createTrigger(task, triggerTimeMs, "absolute", 0, item.time));
             }
             continue;
@@ -67,19 +61,48 @@ export function calculateNotificationTriggers(
         const relative = item as ReminderRelative;
         const dueTimeMs = task.due.length > 10 ? new Date(task.due).getTime() : parseDateToMs(task.due, 0) + 86_399_000;
         const triggerTimeMs = dueTimeMs - relative.minutes * 60_000;
-        if (dueTimeMs > nowMs && isWithinPlanWindow(triggerTimeMs, nowMs, daysLimitMs)) {
+        if (Number.isFinite(dueTimeMs) && Number.isFinite(triggerTimeMs)) {
             triggers.push(createTrigger(task, triggerTimeMs, "relative", relative.minutes, task.due.slice(0, 10)));
         }
     }
 
     if (task.reviewDate) {
         const triggerTimeMs = parseDateToMs(task.reviewDate, REMINDER_REVIEW_HOUR);
-        if (isWithinPlanWindow(triggerTimeMs, nowMs, daysLimitMs)) {
+        if (Number.isFinite(triggerTimeMs)) {
             triggers.push(createTrigger(task, triggerTimeMs, "review", 0, task.reviewDate));
         }
     }
 
     return triggers.sort((a, b) => a.triggerTimeMs - b.triggerTimeMs);
+}
+
+/** Calculate every future trigger for one task in the requested planning window. */
+export function calculateNotificationTriggers(
+    task: TaskCacheEntry,
+    nowMs: number,
+    daysLimitMs: number = REMINDER_MOBILE_PLAN_HORIZON_MS,
+    reminderSettings?: ReminderSettings,
+): MobileNotificationTrigger[] {
+    return calculateAllTriggers(task, reminderSettings).filter((trigger) => {
+        if (!isWithinPlanWindow(trigger.triggerTimeMs, nowMs, daysLimitMs)) return false;
+        if (trigger.kind !== "relative") return true;
+        const dueTimeMs = trigger.triggerTimeMs + trigger.minutesBefore * 60_000;
+        return dueTimeMs > nowMs;
+    });
+}
+
+/** Calculate reminders missed before now, excluding relative reminders for overdue tasks. */
+export function calculateMissedNotificationTriggers(
+    task: TaskCacheEntry,
+    nowMs: number,
+    reminderSettings?: ReminderSettings,
+): MobileNotificationTrigger[] {
+    return calculateAllTriggers(task, reminderSettings).filter((trigger) => {
+        if (!(trigger.triggerTimeMs <= nowMs)) return false;
+        if (trigger.kind !== "relative") return true;
+        const dueTimeMs = trigger.triggerTimeMs + trigger.minutesBefore * 60_000;
+        return dueTimeMs > nowMs;
+    });
 }
 
 export function buildPlanSnapshot(
