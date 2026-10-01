@@ -4,7 +4,7 @@
 
 ### Tasks scatter across your notes — once they pile up, you can no longer tell which to do first.
 
-[![version](https://img.shields.io/badge/version-0.8.2-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
+[![version](https://img.shields.io/badge/version-0.9.0-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
 
 [中文文档](./README.zh-CN.md)
 
@@ -58,7 +58,7 @@ Download the `siyuan-plugin-nextaction` folder from a [release](https://github.c
 |---------|--------|
 | What it touches | `custom-na-*` attributes on SiYuan blocks; runs a bundle in the SiYuan kernel process |
 | Network calls | Only when you use an AI feature — routed through SiYuan's own `/api/ai` to your configured provider. No telemetry to the plugin author. |
-| Compatibility | SiYuan 3.8.0 or newer; native mobile frontends are outside the current support scope |
+| Compatibility | SiYuan 3.8.0 or newer; desktop, native mobile, and browser frontends |
 | Disable | Settings → Marketplace → Downloaded → toggle off |
 | Uninstall | Same menu → uninstall. Block content is preserved; only task attributes are removed. |
 
@@ -68,15 +68,14 @@ Download the `siyuan-plugin-nextaction` folder from a [release](https://github.c
 
 1. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
 2. Click the status circle beside the block to set status, priority, or open task details.
-3. Open the full panel from the top bar on desktop/browser-desktop, or use all views directly in the dock on browser-mobile. **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
+3. Open the full panel from the top bar on desktop/browser-desktop, or use all views directly in the dock on native mobile/browser-mobile. **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
 
 That is enough to start. Importance, review intervals, reminders, dependencies, and custom fields can wait until your task list needs them.
 
 ### Panel entry points
 
 - **Desktop and browser-desktop:** the top-bar button opens the complete workspace in a tab. The right-side dock keeps three frequent views at the top and provides every page through All views. Task details open in a SiYuan dialog.
-- **Browser-mobile:** the dock has four bottom destinations: Next Actions, My Day, Inbox, and All views. It starts in Next Actions and opens task details and creation as full pages with back navigation. Select a project before choosing Overview, Hierarchy, Board, Plan, or Gantt. Boards show one column at a time; Gantt scrolls horizontally inside the chart. Edit schedules with start time and duration without dragging.
-- **Native iOS/Android:** the current plugin manifest does not declare a native mobile backend. Native mobile support is therefore outside the documented support and validation scope.
+- **Native mobile and browser-mobile:** the dock has four bottom destinations: Next Actions, My Day, Inbox, and All views. It starts in Next Actions and opens task details and creation as full pages with back navigation. Select a project before choosing Overview, Hierarchy, Board, Plan, or Gantt. Boards show one column at a time; Gantt scrolls horizontally inside the chart. Edit schedules with start time and duration without dragging. The plugin manifest declares native iOS, Android, and HarmonyOS support.
 
 Panels share task data while keeping their navigation, filters, pagination, and browsing positions separate for the lifetime of each host. Closing the host or refreshing resets them.
 

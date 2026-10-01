@@ -4,7 +4,7 @@
 
 ### 任务散落在笔记各处，攒多了就分不清下一步要做什么。
 
-[![version](https://img.shields.io/badge/version-0.8.2-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
+[![version](https://img.shields.io/badge/version-0.9.0-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
 
 [English](./README.md)
 
@@ -58,7 +58,7 @@ NextAction 把任意块转成带截止日、重要性、工作量的任务，再
 |------------|------|
 | 改动了什么 | 在思源块上写 `custom-na-*` 属性；在思源内核进程中运行一个 bundle |
 | 网络请求 | 只有使用 AI 功能时才会发生——经思源自带的 `/api/ai` 转发到你配置的提供商，不向插件作者回传任何数据 |
-| 兼容性 | 思源 3.8.0 或更高版本；原生移动端不在当前支持范围内 |
+| 兼容性 | 思源 3.8.0 或更高版本；支持桌面端、原生移动端和浏览器端 |
 | 禁用 | 设置 → 集市 → 已下载 → 关闭开关 |
 | 卸载 | 同一菜单 → 卸载。块正文保留，只移除任务属性 |
 
@@ -68,15 +68,14 @@ NextAction 把任意块转成带截止日、重要性、工作量的任务，再
 
 1. 在任意文档里输入 `/ntask`（或 `/zrw`），把当前块转为任务。
 2. 点击块左侧的状态圆圈，设置状态、优先级，或打开任务详情。
-3. 桌面端/browser-desktop 从顶栏打开完整面板；browser-mobile 直接使用 Dock 中的全部视图。**下一步行动**显示当前能做的事，**收集箱**放着还没处理的内容。
+3. 桌面端/browser-desktop 从顶栏打开完整面板；原生移动端/browser-mobile 直接使用 Dock 中的全部视图。**下一步行动**显示当前能做的事，**收集箱**放着还没处理的内容。
 
 先从这几步用起来就够了。重要性、回顾间隔、提醒、依赖、自定义字段，可以等任务变多以后再慢慢加。
 
 ### 面板入口
 
 - **desktop 和 browser-desktop：** 顶栏按钮会在 Tab 中打开完整工作区；右侧 Dock 顶部保留三个常用视图，并可通过“全部视图”进入所有页面；任务详情使用思源弹窗。
-- **browser-mobile：** Dock 底部提供“下一步行动 / 我的一天 / 收集箱 / 全部视图”。默认进入下一步行动，详情和新建任务在面板内整页打开，可逐层返回。项目先选项目，再切换概览、层级、看板、计划或甘特；看板按列查看，甘特仅在图表内横向滚动。日程可通过开始时间和时长编辑，无需拖拽。
-- **原生 iOS/Android：** 当前插件 manifest 没有声明原生移动端后端，因此原生移动端支持不属于本文档承诺和本阶段验收范围。
+- **原生移动端和 browser-mobile：** Dock 底部提供“下一步行动 / 我的一天 / 收集箱 / 全部视图”。默认进入下一步行动，详情和新建任务在面板内整页打开，可逐层返回。项目先选项目，再切换概览、层级、看板、计划或甘特；看板按列查看，甘特仅在图表内横向滚动。日程可通过开始时间和时长编辑，无需拖拽。插件清单已声明支持原生 iOS、Android 和 HarmonyOS。
 
 各面板共享任务数据，但导航、筛选、分页和浏览位置分别记忆；关闭宿主或刷新后重置。
 
