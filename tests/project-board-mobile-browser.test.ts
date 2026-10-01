@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
-// Regression: 移动端看板曾分页显示单列，设置直接写入且横向滑动会误打开任务。
+// Regression: 移动端看板曾分页显示单列，空白区域横向滑动被纵向 touch-action 拦截，设置直接写入且横向滑动会误打开任务。
 test("移动端看板横滑、列内滚动和设置页保持可用", async () => {
     const source = (path: string) => JSON.stringify(resolve(path).replace(/\\/g, "/"));
     const result = await runSvelteBrowserTest<{
@@ -140,7 +140,7 @@ void (async () => {
         cardsOverflow: "auto",
         parentTouchAction: "pan-x pan-y",
         boardTouchAction: "pan-x",
-        cardsTouchAction: "pan-y",
+        cardsTouchAction: "pan-x pan-y",
         pagerAbsent: true,
         controlsAbsent: true,
         innerScroll: true,

@@ -137,6 +137,7 @@
 
     let touchStartX = 0;
     let touchStartY = 0;
+    const mobileBackEdgePx = 24;
     function handleTouchStart(event: TouchEvent) {
         if (!touch || event.touches.length !== 1) return;
         touchStartX = event.touches[0].clientX;
@@ -147,11 +148,12 @@
         const point = event.changedTouches[0];
         const dx = point.clientX - touchStartX;
         const dy = point.clientY - touchStartY;
+        const startedAtEdge = touchStartX <= mobileBackEdgePx;
         touchStartX = 0;
         touchStartY = 0;
-        // iOS/Android edge-back equivalent. Require a predominantly horizontal
-        // right swipe and avoid stealing vertical list scrolling.
-        if (dx >= 72 && Math.abs(dx) > Math.abs(dy) * 1.35) back();
+        // iOS/Android edge-back equivalent. Require a left-edge, predominantly
+        // horizontal right swipe and avoid stealing content scrolling.
+        if (startedAtEdge && dx >= 72 && Math.abs(dx) > Math.abs(dy) * 1.35) back();
     }
 
     let activeView = $derived($session.activeView);

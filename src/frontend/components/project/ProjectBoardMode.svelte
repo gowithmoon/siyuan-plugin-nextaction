@@ -720,7 +720,7 @@
     .na-project-board--touch .na-project-board__cards {
         flex: 1 1 auto;
         min-height: 0;
-        touch-action: pan-y;
+        touch-action: pan-x pan-y;
     }
     @container nextaction-app (max-width: 780px) {
         .na-project-board {

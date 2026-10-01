@@ -205,6 +205,10 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  `
          : ""
  }
+ const touchPoint=(type,x,y)=>{const event=new Event(type,{bubbles:true});const point={clientX:x,clientY:y};Object.defineProperty(event,'touches',{value:type==='touchend'?[]:[point]});Object.defineProperty(event,'changedTouches',{value:[point]});document.querySelector('.na-app').dispatchEvent(event);};
+ catalog();await pause();click('项目视图',document.querySelector('.na-view-directory'));await pause();document.querySelector('.na-project-index__item').click();await pause();
+ touchPoint('touchstart',120,120);touchPoint('touchend',220,120);await pause();out.interiorSwipeKeepsProject=!!document.querySelector('.na-project-canvas');
+ touchPoint('touchstart',8,120);touchPoint('touchend',108,120);await pause();out.edgeSwipeReturns=!!document.querySelector('.na-project-index')&&!document.querySelector('.na-project-canvas');
  out.noOverflow=document.querySelector('.na-app').scrollWidth<=document.querySelector('.na-app').clientWidth;
  out.errors=errors;window.__NA_BROWSER_RESULT__(out);
 })().catch(error=>window.__NA_BROWSER_RESULT__({error:String(error.stack),pages:[...document.querySelectorAll('.na-page-host')].map(n=>({html:n.innerHTML.slice(0,2500),inert:n.inert})),errors}));`,
@@ -259,6 +263,8 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
                       readFailureRetained: true,
                   }
                 : {}),
+            interiorSwipeKeepsProject: true,
+            edgeSwipeReturns: true,
             noOverflow: true,
             errors: [],
         });
