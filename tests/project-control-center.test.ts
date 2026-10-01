@@ -62,6 +62,7 @@ test("项目总览优先呈现风险与下一步，并提供可恢复的筛选�
 
 test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作", () => {
     const gantt = source("../src/frontend/components/GanttView.svelte");
+    const view = source("../src/frontend/components/ProjectView.svelte");
     const bar = source("../src/frontend/components/GanttBar.svelte");
     assert.match(gantt, /class="na-gantt__viewport"/);
     assert.match(gantt, /position:\s*sticky;/);
@@ -75,14 +76,19 @@ test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作",
     assert.match(gantt, /--na-gantt-outline-width: 276px/);
     assert.match(gantt, /ganttScaleWeek/);
     assert.match(gantt, /ganttSortTimeline/);
-    assert.match(gantt, /NaSegmentControl/);
-    assert.match(gantt, /contentHeight = \$derived\(rowsHeight \+ 72\)/);
+    assert.match(gantt, /ganttSettings/);
+    assert.match(gantt, /GANTT_MOBILE_ROW_HEIGHT/);
+    assert.match(gantt, /availableViewportHeight/);
+    assert.match(gantt, /Math\.min\(depth, 3\)/);
     assert.match(gantt, /na-gantt__bar-row--summary/);
-    assert.doesNotMatch(gantt, /scrollTop/);
+    assert.match(gantt, /scrollTop/);
+    assert.match(view, /class:na-project-workspace--gantt=\{mode === "gantt"\}/);
+    assert.match(view, /\.na-project-workspace--gantt\s*\{[^}]*overflow:\s*hidden/);
     assert.match(bar, /NaTooltip/);
     assert.match(bar, /aria-pressed=\{selected\}/);
     assert.match(bar, /:focus-visible/);
     assert.match(bar, /showOutsideLabel/);
+    assert.match(bar, /width:\s*max-content/);
     assert.match(bar, /na-gantt-bar-anchor--rollup/);
     assert.match(bar, /na-gantt-bar__target/);
     assert.match(bar, /na-gantt-bar-anchor--clarify/);

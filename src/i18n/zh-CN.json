@@ -154,6 +154,7 @@
     "ganttSortLabel": "甘特排序",
     "ganttSortTimeline": "时间",
     "ganttSortManual": "手动",
+    "ganttSettings": "甘特设置",
     "ganttProjectDeadline": "项目截止日",
     "projectShowCompleted": "显示已完成",
     "projectFilterRisk": "风险筛选",

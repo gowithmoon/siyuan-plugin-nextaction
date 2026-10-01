@@ -158,7 +158,7 @@
 <style lang="scss">
     .na-gantt-bar-anchor {
         position: absolute;
-        top: 11px;
+        top: calc((var(--na-gantt-row-height, 48px) - 26px) / 2);
         height: 26px;
         z-index: 2;
         min-width: 0;
@@ -245,11 +245,12 @@
         position: absolute;
         top: 4px;
         left: calc(100% + 7px);
-        max-width: 190px;
-        overflow: hidden;
+        width: max-content;
+        max-width: none;
+        overflow: visible;
         color: var(--na-text-primary);
         font-variant-numeric: tabular-nums;
-        text-overflow: ellipsis;
+        text-overflow: clip;
         pointer-events: none;
     }
 
@@ -323,7 +324,7 @@
     }
 
     .na-gantt-bar-anchor--rollup {
-        top: 9px;
+        top: calc((var(--na-gantt-row-height, 48px) - 28px) / 2);
         height: 28px;
     }
 

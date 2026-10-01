@@ -154,6 +154,7 @@
     "ganttSortLabel": "Gantt order",
     "ganttSortTimeline": "Time",
     "ganttSortManual": "Manual",
+    "ganttSettings": "Gantt settings",
     "ganttProjectDeadline": "Project deadline",
     "projectShowCompleted": "Show completed",
     "projectFilterRisk": "Risk filter",

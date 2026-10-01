@@ -526,6 +526,7 @@
         class="na-project-workspace"
         class:na-project-workspace--compact={compact}
         class:na-project-workspace--focus={mode !== "overview"}
+        class:na-project-workspace--gantt={mode === "gantt"}
     >
         {#if !compact || level === "list"}
             <aside class="na-project-index" aria-label={i18n?.projectList || "Project list"}>
@@ -1148,6 +1149,9 @@
             flex-direction: column;
             overflow: auto;
         }
+        .na-project-workspace--gantt {
+            overflow: hidden;
+        }
         .na-project-index {
             max-height: 190px;
             border-right: 0;
@@ -1158,7 +1162,9 @@
             padding: 10px;
         }
         .na-project-canvas--gantt {
-            min-height: 420px;
+            flex: 1 1 auto;
+            height: auto;
+            min-height: 0;
             overflow: hidden;
         }
     }

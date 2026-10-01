@@ -1,18 +1,24 @@
 <script lang="ts">
     import { useWorkspace } from "../workspace-context";
+    import NaButton from "../ui/NaButton.svelte";
+    import NaPageHost from "../ui/NaPageHost.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
     const workspace = useWorkspace();
     const compact = workspace?.compact ?? false;
+    const touch = workspace?.touch ?? false;
     let showNames = $state(workspace?.session.read("ganttNames", true) ?? true);
+    let settingsOpen = $state(false);
+    let settingsSortMode = $state<ProjectTreeSortMode>("timeline");
+    let settingsShowNames = $state(true);
     onDestroy(() => workspace?.session.remember("ganttNames", showNames));
     import { onDestroy, onMount, tick } from "svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import NaEmpty from "../ui/NaEmpty.svelte";
     import NaIconButton from "../ui/NaIconButton.svelte";
-    import NaSegmentControl from "../ui/NaSegmentControl.svelte";
     import type { ProjectTreeModel, ProjectTreeSortMode } from "../utils/project-tree";
     import {
         GANTT_ROW_HEIGHT,
+        GANTT_MOBILE_ROW_HEIGHT,
         buildGanttAxis,
         calculateGanttEdges,
         calculateGanttGeometries,
@@ -53,6 +59,7 @@
     let viewportElement: HTMLDivElement | undefined = $state();
     let outlineElement: HTMLDivElement | undefined = $state();
     let availableTimelineWidth = $state(0);
+    let availableViewportHeight = $state(0);
     let resizeObserver: ResizeObserver | null = null;
     let lastScrollKey = "";
 
@@ -69,22 +76,32 @@
         return "var(--na-color-info)";
     }
 
+    function outlinePadding(depth: number): string {
+        return `${Math.min(depth, 3) * 12 + 8}px`;
+    }
+
     function measure(): void {
         if (!viewportElement || !outlineElement) return;
         availableTimelineWidth = Math.max(280, viewportElement.clientWidth - outlineElement.offsetWidth);
+        availableViewportHeight = viewportElement.clientHeight;
     }
 
     async function scheduleInitialScroll(): Promise<void> {
-        if (!range || !viewportElement || !outlineElement) return;
-        const key = `${model.rows[0]?.task.blockId || ""}:${range.startDate}:${range.endDate}:${range.scale}:${range.pixelsPerDay.toFixed(3)}`;
+        if (!viewportElement || !outlineElement) return;
+        const key = `${model.rows[0]?.task.blockId || ""}:${range?.startDate || ""}:${range?.endDate || ""}:${range?.scale || "empty"}:${range?.pixelsPerDay.toFixed(3) || ""}:${availableViewportHeight}`;
         if (key === lastScrollKey) return;
         lastScrollKey = key;
         await tick();
-        const saved = workspace?.session.read<{ left: number } | null>(`ganttScroll:${projectTasks[0]?.blockId}`, null);
+        const saved = workspace?.session.read<{ left: number; top?: number } | null>(
+            `ganttScroll:${projectTasks[0]?.blockId}`,
+            null,
+        );
         if (saved) {
             viewportElement.scrollLeft = saved.left;
+            viewportElement.scrollTop = saved.top || 0;
             return;
         }
+        if (!range) return;
         if (todayX !== null && todayX >= 0 && todayX <= timelineWidth) {
             viewportElement.scrollLeft = Math.max(
                 0,
@@ -109,8 +126,17 @@
         onContextMenu(task, event);
     }
 
-    function handleSortModeChange(value: string): void {
-        onSortModeChange(value as ProjectTreeSortMode);
+    function openSettings(): void {
+        settingsSortMode = sortMode;
+        settingsShowNames = showNames;
+        settingsOpen = true;
+    }
+
+    function applySettings(): void {
+        onSortModeChange(settingsSortMode);
+        showNames = settingsShowNames;
+        settingsOpen = false;
+        void tick().then(measure);
     }
 
     onMount(() => {
@@ -126,16 +152,19 @@
     onDestroy(() => resizeObserver?.disconnect());
     let baseRange = $derived(calculateGanttRange(model.includedTasks));
     let range = $derived(baseRange ? fitGanttRange(baseRange, availableTimelineWidth) : null);
+    let rowHeight = $derived(touch ? GANTT_MOBILE_ROW_HEIGHT : GANTT_ROW_HEIGHT);
+    let headerHeight = $derived(touch ? 48 : 72);
     let axis = $derived(range ? buildGanttAxis(range) : { primary: [], secondary: [] });
     let geometries = $derived(range ? calculateGanttGeometries(projectTasks, model, range) : new Map());
-    let edges = $derived(range ? calculateGanttEdges(model.rows, projectTasks, geometries) : []);
-    let timelineWidth = $derived(range ? range.totalDays * range.pixelsPerDay : Math.max(availableTimelineWidth, 360));
+    let edges = $derived(range ? calculateGanttEdges(model.rows, projectTasks, geometries, rowHeight) : []);
+    let timelineWidth = $derived(
+        range ? range.totalDays * range.pixelsPerDay + 220 : Math.max(availableTimelineWidth, 360),
+    );
     let rowsHeight = $derived(
         range
-            ? Math.max(model.rows.length * GANTT_ROW_HEIGHT, GANTT_ROW_HEIGHT)
-            : Math.max(model.rows.length * GANTT_ROW_HEIGHT, 200),
+            ? Math.max(model.rows.length * rowHeight, Math.max(rowHeight, availableViewportHeight - headerHeight))
+            : Math.max(model.rows.length * rowHeight, Math.max(200, availableViewportHeight - headerHeight)),
     );
-    let contentHeight = $derived(rowsHeight + 72);
     let todayX = $derived(range ? dateToPixel(localCalendarDate(), range) : null);
     let markerPrefix = $derived(`na-gantt-${model.rows[0]?.task.blockId || "project"}`);
     let explicitlyScheduledTaskIds = $derived(
@@ -156,15 +185,11 @@
               : i18n?.ganttScaleMonth || "Month",
     );
     $effect(() => {
-        if (range && viewportElement) scheduleInitialScroll();
+        if (viewportElement) scheduleInitialScroll();
     });
 </script>
 
-<div
-    class="na-gantt"
-    style="--na-gantt-content-height: {contentHeight}px"
-    aria-label={i18n?.projectViewGantt || "Gantt"}
->
+<div class="na-gantt" aria-label={i18n?.projectViewGantt || "Gantt"}>
     <div
         class="na-gantt__viewport"
         bind:this={viewportElement}
@@ -172,39 +197,30 @@
             if (viewportElement)
                 workspace?.session.remember(`ganttScroll:${projectTasks[0]?.blockId}`, {
                     left: viewportElement.scrollLeft,
+                    top: viewportElement.scrollTop,
                 });
         }}
     >
-        {#if compact}<NaToggle
-                checked={showNames}
-                label={i18n.ganttToggleNames}
-                showText
-                onChange={(value) => (showNames = value)}
-            />{/if}
         <div
             class="na-gantt__grid"
-            class:na-gantt__grid--compact={compact}
-            class:na-gantt__grid--names-hidden={compact && !showNames}
-            style="--na-gantt-timeline-width: {timelineWidth}px; --na-gantt-rows-height: {rowsHeight}px;"
+            class:na-gantt__grid--compact={compact || touch}
+            class:na-gantt__grid--names-hidden={!showNames}
+            style="--na-gantt-timeline-width: {timelineWidth}px; --na-gantt-rows-height: {rowsHeight}px; --na-gantt-row-height: {rowHeight}px; --na-gantt-header-height: {headerHeight}px;"
         >
             <header class="na-gantt__corner">
                 <div class="na-gantt__corner-title">
                     <strong>{i18n?.projectViewGantt || "Gantt"}</strong>
                     {#if range}<span class="na-gantt__scale">{scaleLabel}</span>{/if}
+                    <NaIconButton
+                        symbol="iconSettings"
+                        label={i18n?.ganttSettings || "Gantt settings"}
+                        compact
+                        onclick={openSettings}
+                    />
                 </div>
                 {#if range}
                     <div class="na-gantt__corner-meta">
                         <span>{scheduledCount} {i18n?.ganttScheduled || "Scheduled"}</span>
-                        <NaSegmentControl
-                            size="sm"
-                            value={sortMode}
-                            label={i18n?.ganttSortLabel || "Gantt order"}
-                            options={[
-                                { value: "timeline", label: i18n?.ganttSortTimeline || "Time" },
-                                { value: "manual", label: i18n?.ganttSortManual || "Manual" },
-                            ]}
-                            onChange={handleSortModeChange}
-                        />
                     </div>
                 {:else}
                     <div class="na-gantt__schedule-summary">
@@ -260,7 +276,7 @@
                         class="na-gantt__outline-row"
                         class:selected={row.task.blockId === selectedTaskId}
                         class:na-gantt__outline-row--summary={row.depth === 0 && row.hasChildren}
-                        style="height: {GANTT_ROW_HEIGHT}px; padding-left: {row.depth * 18 + 8}px;"
+                        style="height: {rowHeight}px; padding-left: {outlinePadding(row.depth)};"
                     >
                         {#if row.hasChildren}
                             <NaIconButton
@@ -354,7 +370,7 @@
                                 class="na-gantt__bar-row"
                                 class:selected={row.task.blockId === selectedTaskId}
                                 class:na-gantt__bar-row--summary={row.depth === 0 && row.hasChildren}
-                                style="top: {index * GANTT_ROW_HEIGHT}px; height: {GANTT_ROW_HEIGHT}px"
+                                style="top: {index * rowHeight}px; height: {rowHeight}px"
                             >
                                 {#if geometry}
                                     <GanttBar
@@ -409,9 +425,38 @@
     </div>
 </div>
 
+{#if settingsOpen}
+    <NaPageHost
+        title={i18n?.ganttSettings || "Gantt settings"}
+        backLabel={i18n?.cancel || "Cancel"}
+        onBack={() => (settingsOpen = false)}
+    >
+        {#snippet actions()}<NaButton variant="primary" onclick={applySettings}>{i18n?.apply || "Apply"}</NaButton
+            >{/snippet}
+        <div class="na-gantt__settings">
+            <label for="na-gantt-settings-sort"
+                >{i18n?.ganttSortLabel || "Gantt order"}<select
+                    id="na-gantt-settings-sort"
+                    class="na-select"
+                    bind:value={settingsSortMode}
+                >
+                    <option value="timeline">{i18n?.ganttSortTimeline || "Time"}</option>
+                    <option value="manual">{i18n?.ganttSortManual || "Manual"}</option>
+                </select></label
+            >
+            <NaToggle
+                checked={settingsShowNames}
+                label={i18n?.ganttToggleNames || "Show task names"}
+                showText
+                onChange={(value) => (settingsShowNames = value)}
+            />
+        </div>
+    </NaPageHost>
+{/if}
+
 <style lang="scss">
     .na-gantt__grid--compact {
-        --na-gantt-outline-width: min(40cqw, 164px) !important;
+        --na-gantt-outline-width: min(max(44cqw, 144px), 192px) !important;
     }
     .na-gantt__grid--names-hidden {
         --na-gantt-outline-width: 0px !important;
@@ -425,10 +470,10 @@
 
     .na-gantt {
         display: flex;
-        flex: 0 1 var(--na-gantt-content-height);
+        flex: 1 1 auto;
         width: 100%;
-        height: var(--na-gantt-content-height);
-        max-height: 100%;
+        height: auto;
+        max-height: none;
         min-width: 0;
         min-height: 96px;
         border: 1px solid color-mix(in srgb, var(--na-color-divider) 86%, var(--na-accent));
@@ -451,7 +496,7 @@
         --na-gantt-outline-width: 276px;
         display: grid;
         grid-template-columns: var(--na-gantt-outline-width) var(--na-gantt-timeline-width);
-        grid-template-rows: 72px var(--na-gantt-rows-height);
+        grid-template-rows: var(--na-gantt-header-height, 72px) var(--na-gantt-rows-height);
         width: max-content;
         min-width: 100%;
     }
@@ -476,17 +521,22 @@
     .na-gantt__corner-title {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 8px;
         color: var(--na-text-primary);
     }
 
     .na-gantt__corner-title strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         font-size: 15px;
         font-weight: 750;
         letter-spacing: 0.01em;
     }
 
     .na-gantt__scale {
+        margin-left: auto;
         min-width: 28px;
         padding: 2px 8px;
         border-radius: var(--na-radius-pill);
@@ -724,7 +774,7 @@
     .na-gantt__timeline {
         position: relative;
         min-width: 0;
-        overflow: hidden;
+        overflow: visible;
         background: color-mix(in srgb, var(--b3-theme-background) 94%, var(--b3-theme-surface));
     }
 
@@ -935,6 +985,16 @@
         color: var(--na-color-warning);
     }
 
+    .na-gantt__settings {
+        display: grid;
+        gap: 16px;
+        padding: 16px;
+    }
+    .na-gantt__settings label {
+        display: grid;
+        gap: 8px;
+    }
+
     @container nextaction-app (max-width: 880px) {
         .na-gantt__grid {
             --na-gantt-outline-width: 210px;
@@ -943,13 +1003,44 @@
 
     @container nextaction-app (max-width: 520px) {
         .na-gantt__grid {
-            --na-gantt-outline-width: 164px;
+            --na-gantt-outline-width: min(max(44cqw, 144px), 192px);
         }
         .na-gantt__corner {
-            padding-inline: 6px;
+            gap: 2px;
+            padding: 2px 6px;
+        }
+        .na-gantt__corner-title {
+            min-height: 24px;
+        }
+        .na-gantt__corner-meta {
+            min-height: 14px;
+            font-size: 11px;
+        }
+        .na-gantt__axis-row {
+            height: 24px;
+        }
+        .na-gantt__axis-empty {
+            height: 48px;
         }
         .na-gantt__task-name {
             font-size: var(--na-font-size-md);
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            overflow: hidden;
+            line-height: 1.25;
+            white-space: normal;
+        }
+        .na-gantt__task-title {
+            height: calc(100% - 8px);
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 2px;
+        }
+        .na-gantt__task-meta {
+            min-height: 14px;
         }
         .na-gantt__child-count {
             display: none;

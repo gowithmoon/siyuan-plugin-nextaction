@@ -215,3 +215,20 @@ test("依赖箭头只连接可见端点并让显式依赖覆盖顺序链", () =>
     assert.equal(edges.find((edge) => edge.id.includes("b->c"))?.type, "sequential");
     assert.equal(calculateGanttEdges(rows([a, c]), items, geometries).length, 0);
 });
+
+test("移动端行高作为依赖线几何输入保持任务中心对齐", () => {
+    // Regression: 甘特移动端行高提升后，依赖线仍按 48px 计算，导致箭头偏离任务条中心。
+    const a = task("a", { start: "2026-08-01", due: "2026-08-02", depends: "" });
+    const b = task("b", { start: "2026-08-03", due: "2026-08-04", depends: "a" });
+    const items = [a, b];
+    const range = calculateGanttRange(items);
+    assert.ok(range);
+    const model = {
+        includedIds: new Set(items.map((entry) => entry.blockId)),
+        includedTasks: items,
+        childrenByParent: new Map(),
+    };
+    const geometries = calculateGanttGeometries(items, model, range);
+    const edge = calculateGanttEdges(rows(items), items, geometries, 64)[0];
+    assert.match(edge.path, /V 96 /);
+});

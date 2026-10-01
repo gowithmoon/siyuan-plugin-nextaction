@@ -3,6 +3,7 @@ import type { ProjectTreeModel, ProjectTreeRow } from "./project-tree";
 import { isProjectTask } from "../../shared/project-domain";
 
 export const GANTT_ROW_HEIGHT = 48;
+export const GANTT_MOBILE_ROW_HEIGHT = 64;
 
 export type GanttScaleName = "day" | "week" | "month";
 export type GanttBarKind = "bar" | "deadline" | "open" | "rollup";
@@ -399,6 +400,7 @@ export function calculateGanttEdges(
     rows: ProjectTreeRow[],
     allProjectTasks: TaskCacheEntry[],
     geometries: ReadonlyMap<string, GanttBarGeometry>,
+    rowHeight = GANTT_ROW_HEIGHT,
 ): GanttEdge[] {
     const rowIndex = new Map(rows.map((row, index) => [row.task.blockId, index]));
     const visibleTaskById = new Map(rows.map((row) => [row.task.blockId, row.task]));
@@ -419,9 +421,9 @@ export function calculateGanttEdges(
             type,
             path: edgePath(
                 geometryEnd(sourceGeometry),
-                sourceRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+                sourceRow * rowHeight + rowHeight / 2,
                 geometryStart(targetGeometry),
-                targetRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+                targetRow * rowHeight + rowHeight / 2,
             ),
         });
     };
