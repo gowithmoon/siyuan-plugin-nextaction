@@ -2,8 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { runBrowser } from "./helpers/browser.ts";
+import { browserViewportArgs, runBrowser } from "./helpers/browser.ts";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
+
+test("浏览器视口只为低于最小窗口宽度的场景缩放", () => {
+    // Regression: 横屏 844x390 被缩为 500x232，Runner Chrome 钳制窗口高度后形成了错误的 CSS 视口。
+    assert.deepEqual(browserViewportArgs(360, 640), ["--window-size=500,889", "--force-device-scale-factor=1.388889"]);
+    assert.deepEqual(browserViewportArgs(844, 390), ["--window-size=844,390", "--force-device-scale-factor=1.000000"]);
+});
 
 // Regression: 浏览器超时后曾遗留子进程并锁住临时 profile，导致后续清理报 EBUSY。
 test("浏览器超时会终止整个进程树并返回超时结果", async () => {

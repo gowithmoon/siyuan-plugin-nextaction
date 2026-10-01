@@ -10,6 +10,8 @@ import svelteConfig from "../../svelte.config.js";
 import { frontendInlineDynamicImports, frontendViteAliases } from "../../vite.shared.ts";
 import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./browser.ts";
 
+export { browserViewportArgs } from "./browser.ts";
+
 const svelteRoot = resolve("node_modules/svelte");
 const sveltePublicAliases: Alias[] = [
     { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },

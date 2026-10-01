@@ -868,6 +868,11 @@
         padding: 12px;
         box-sizing: border-box;
     }
+    .na-project-workspace--compact .na-project-canvas--gantt {
+        height: auto;
+        overflow: hidden;
+        padding: 6px;
+    }
     .na-project-workspace--compact .na-project-risk-rail {
         display: flex;
         width: 100%;
@@ -1160,13 +1165,6 @@
         .na-project-canvas {
             overflow: visible;
             padding: 10px;
-        }
-        .na-project-workspace--compact .na-project-canvas--gantt {
-            flex: 1 1 auto;
-            height: auto;
-            min-height: 0;
-            overflow: hidden;
-            padding: 6px;
         }
     }
 </style>

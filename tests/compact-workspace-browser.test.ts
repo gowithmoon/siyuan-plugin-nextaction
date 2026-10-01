@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
+import { browserViewportArgs, runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 const source = (path: string) => JSON.stringify(resolve(path));
 
@@ -18,8 +18,7 @@ for (const [width, height, mobile, dark] of [
         const result = await runSvelteBrowserTest<Record<string, unknown>>({
             fixtureName: "compact-workspace",
             browserArgs: [
-                `--window-size=500,${Math.ceil((height * 500) / width)}`,
-                `--force-device-scale-factor=${(500 / width).toFixed(6)}`,
+                ...browserViewportArgs(width, height),
                 `--screenshot=${join(tmpdir(), `nextaction-${width}.png`)}`,
             ],
             virtualTimeBudget: 8000,

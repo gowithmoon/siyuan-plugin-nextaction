@@ -13,6 +13,18 @@ export type BrowserResult = {
 
 type RunBrowserOptions = { timeout?: number; encoding?: BufferEncoding };
 
+export function browserViewportArgs(width: number, height: number): string[] {
+    assert.ok(Number.isFinite(width) && width > 0, "浏览器视口宽度必须为正数");
+    assert.ok(Number.isFinite(height) && height > 0, "浏览器视口高度必须为正数");
+
+    const windowWidth = Math.max(500, width);
+    const scale = windowWidth / width;
+    return [
+        `--window-size=${windowWidth},${Math.ceil(height * scale)}`,
+        `--force-device-scale-factor=${scale.toFixed(6)}`,
+    ];
+}
+
 function killProcessTree(pid: number | undefined, fallback: () => void): Promise<void> {
     if (!pid) return Promise.resolve();
 
