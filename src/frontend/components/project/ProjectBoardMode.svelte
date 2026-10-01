@@ -316,7 +316,7 @@
     let visibleColumns = $derived(narrow ? [columns[narrowColumnIndex]] : columns);
 </script>
 
-<div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
+<div class="na-project-board" class:na-project-board--touch={touch} aria-busy={busy} bind:this={boardElement}>
     <div class="na-project-board__header">
         {#if progress}
             <div class="na-project-board__progress">{@render progress()}</div>
@@ -684,50 +684,47 @@
         gap: 8px;
         margin-bottom: 8px;
     }
+    .na-project-board--touch {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        height: 100%;
+        flex-direction: column;
+    }
+    .na-project-board--touch .na-project-board__header {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        z-index: 2;
+        margin: 0;
+    }
+    .na-project-board--touch .na-project-board__columns {
+        grid-template-columns: repeat(var(--na-project-board-column-count, 6), minmax(84vw, 1fr));
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        touch-action: pan-x;
+    }
+    .na-project-board--touch .na-project-board__column {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        flex-direction: column;
+        scroll-snap-align: start;
+    }
+    .na-project-board--touch .na-project-board__column > header {
+        padding-right: 52px;
+    }
+    .na-project-board--touch .na-project-board__cards {
+        flex: 1 1 auto;
+        min-height: 0;
+        touch-action: pan-y;
+    }
     @container nextaction-app (max-width: 780px) {
         .na-project-board {
             min-width: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        .na-project-board__columns,
-        .na-project-board__columns--narrow {
-            grid-template-columns: repeat(var(--na-project-board-column-count, 6), minmax(84vw, 1fr));
-            min-width: 0;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
-            flex: 1 1 auto;
-            min-height: 0;
-            touch-action: pan-x;
-        }
-        .na-project-board__column {
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-            min-height: 0;
-            scroll-snap-align: start;
-        }
-        .na-project-board__cards {
-            flex: 1 1 auto;
-            min-height: 0;
-            touch-action: pan-y;
-        }
-        .na-project-board__pager {
-            display: grid;
-            grid-template-columns: 44px minmax(0, 1fr) 44px;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-            color: var(--na-text-secondary);
-            font-size: var(--na-font-size-sm);
-            font-weight: 600;
-            text-align: center;
-        }
-        .na-project-board__pager > select {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
     }
 </style>

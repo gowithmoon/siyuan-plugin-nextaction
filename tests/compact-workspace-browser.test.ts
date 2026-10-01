@@ -7,13 +7,14 @@ import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 const source = (path: string) => JSON.stringify(resolve(path));
 
 for (const [width, height, mobile, dark] of [
+    [360, 640, true, false],
     [360, 800, true, false],
     [390, 844, true, true],
-    [430, 932, true, false],
     [844, 390, true, false],
 ] as const)
     test(`紧凑工作区 ${width}×${height} ${mobile ? "手机" : "桌面 Dock"} ${dark ? "深色" : "浅色"}`, async () => {
         // Regression: 移动 Dock 只能通过桌面式完整面板访问项目，缺少触摸导航与整页编辑。
+        // Regression: 旧紧凑看板样式覆盖横向网格，横屏内容区不足可用高度的 70%。
         const result = await runSvelteBrowserTest<Record<string, unknown>>({
             fixtureName: "compact-workspace",
             browserArgs: [
@@ -34,12 +35,16 @@ import { DEFAULT_SETTINGS } from ${source("src/shared/settings.ts")};
 import i18n from ${source("src/i18n/zh-CN.json")};
 import ${source("src/index.scss")};
 const base = { identificationSource:'native', contentBlockId:'', attrHostId:'', parentId:'', status:'todo', priority:'medium', importance:4, effort:4, due:'', start:'', context:'', taskType:'1', order:0, childIds:[], depends:'', depMode:'all', sequential:false, repeat:'', repeatState:'', sort:0, completed:'', note:'', outcome:'', dod:'', actionKind:'action', created:'', tags:'', blocked:false, blockedReason:'', reviewInterval:0, reviewDate:'', reminder:'', customFields:{} };
-const tasks = [
-{...base,blockId:'20260910120000-project',attrHostId:'20260910120000-project',title:'季度计划',taskType:'2',identificationSource:'document',childIds:['20260910120000-actionx']},
-{...base,blockId:'20260910120000-actionx',attrHostId:'20260910120000-actionx',title:'整理项目资料',parentId:'20260910120000-project',start:'2026-09-10',due:'2026-09-20'},
-{...base,blockId:'20260910120000-stagexx',attrHostId:'20260910120000-stagexx',title:'准备阶段',parentId:'20260910120000-project',actionKind:'stage'},
-{...base,blockId:'20260910120000-inboxxx',attrHostId:'20260910120000-inboxxx',title:'收集的想法',status:'inbox'},
-];
+const project={...base,blockId:'20260910120000-project',attrHostId:'20260910120000-project',title:'季度计划 Project Alpha 的超长中英文项目标题',taskType:'2',identificationSource:'document',childIds:[]};
+const action={...base,blockId:'20260910120000-actionx',attrHostId:'20260910120000-actionx',title:'整理项目资料与跨团队交付清单',parentId:project.blockId,start:'2026-09-10',due:'2026-09-20'};
+const stage={...base,blockId:'20260910120000-stagexx',attrHostId:'20260910120000-stagexx',title:'准备阶段',parentId:project.blockId,actionKind:'stage',childIds:['20260910120000-deep001'],sort:100};
+const deepOne={...base,blockId:'20260910120000-deep001',attrHostId:'20260910120000-deep001',title:'深层任务一',parentId:stage.blockId,childIds:['20260910120000-deep002'],sort:100};
+const deepTwo={...base,blockId:'20260910120000-deep002',attrHostId:'20260910120000-deep002',title:'Deep nested task with a long bilingual title 深层任务二',parentId:deepOne.blockId,childIds:['20260910120000-deep003'],sort:100};
+const deepThree={...base,blockId:'20260910120000-deep003',attrHostId:'20260910120000-deep003',title:'深层任务三',parentId:deepTwo.blockId,sort:100};
+const extraActions=Array.from({length:18},(_,index)=>({...base,blockId:'20260910120000-extra'+String(index).padStart(2,'0'),attrHostId:'20260910120000-extra'+String(index).padStart(2,'0'),title:'Project action '+index,parentId:project.blockId,status:'doing',start:'2026-09-'+String(1+(index%20)).padStart(2,'0'),due:'2026-10-'+String(1+(index%20)).padStart(2,'0'),sort:200+index}));
+const inbox={...base,blockId:'20260910120000-inboxxx',attrHostId:'20260910120000-inboxxx',title:'收集的想法',status:'inbox'};
+project.childIds=[action.blockId,stage.blockId,...extraActions.map(task=>task.blockId)];
+const tasks=[project,action,stage,deepOne,deepTwo,deepThree,...extraActions,inbox];
 taskStore.applySettingsUpdate(DEFAULT_SETTINGS);
 for (const task of tasks) taskStore.applyUpdate(task);
 const day = {date:'2026-09-10',tasks:[{blockId:tasks[1].blockId,addedAt:1,scheduleStart:60,scheduleEnd:120,order:0}],updatedAt:1};
@@ -49,6 +54,7 @@ window.scheduleWrites = [];
 window.createdCalls = 0;
 window.createdReadCalls = 0;
 window.boardMoves = [];
+window.hierarchyMoves = [];
 const bridge = {
  getTask:async(id)=>{if(id==='20260910120000-created' && window.createdReadCalls++===0) throw new Error('read unavailable'); return tasks.find(t=>t.blockId===id);},
  moveProjectBoardTask:async(input)=>{window.boardMoves.push(input);return {status:'success',task:tasks.find(task=>task.blockId===input.taskId),reordered:true};},
@@ -59,6 +65,7 @@ const bridge = {
  getMyDay:async()=>day,
  setMyDaySchedule:async(id,start,end)=>{window.scheduleWrites.push({id,start,end});return {...day,tasks:day.tasks.map(entry=>entry.blockId===id?{...entry,scheduleStart:start,scheduleEnd:end}:entry)};},
  updateTask:async(id,attrs)=>{ const task=tasks.find(t=>t.blockId===id); const updated={...task}; for (const [key,value] of Object.entries(attrs)) { if (key==='na-status') updated.status=value; } return updated; },
+ reorderTask:async(id,parentId,afterId)=>{window.hierarchyMoves.push({id,parentId,afterId});const task=tasks.find(entry=>entry.blockId===id);const siblings=tasks.filter(entry=>entry.parentId===parentId&&entry.blockId!==id).sort((left,right)=>left.sort-right.sort||left.blockId.localeCompare(right.blockId));const index=afterId?siblings.findIndex(entry=>entry.blockId===afterId)+1:0;const previous=siblings[index-1]?.sort??-100;const next=siblings[index]?.sort??previous+200;const updated={...task,parentId,sort:previous+(next-previous)/2};Object.assign(task,updated);return updated;},
  createTask:async(input)=>{window.createdCalls++; const task={...base,blockId:'20260910120000-created',attrHostId:'20260910120000-created',title:input.title,status:'inbox'};tasks.push(task);return {task:{id:task.blockId,title:task.title},warnings:[],destination:{}};},
 };
 </script>
@@ -76,7 +83,7 @@ const pause=async(ms=80)=>{await tick();await new Promise(r=>setTimeout(r,ms));}
 const click=(label,root=document)=>{const button=[...root.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||b.textContent.trim())===label);if(!button)throw Error('Missing '+label);button.click();};
 (async()=>{
  await pause();
- const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
+ const out={hasDesktopRail:!!document.querySelector('.na-nav-rail'),themeBackground:getComputedStyle(document.documentElement).getPropertyValue('--b3-theme-background').trim()};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
  const catalog=()=>click('全部视图',${mobile ? 'document.querySelector(".na-compact-nav--bottom")' : "document"});
  // Regression: 移动端“全部任务”和“全部视图”曾共用图标，且视图面板顶部出现来源不明的“项目”快捷入口。
@@ -93,6 +100,7 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  document.querySelector('.na-project-index__item').click();await pause();
  out.projectDrilldown=!!document.querySelector('.na-project-canvas')&&!document.querySelector('.na-project-index');
  out.projectHeaderOnly=!document.querySelector('.na-workspace__header')&&!!document.querySelector('.na-project-compact-toolbar');
+ const projectTitle=document.querySelector('.na-project-compact-title');out.projectTitleSingleLine=projectTitle.textContent.includes('Project Alpha')&&getComputedStyle(projectTitle).whiteSpace==='nowrap';
  click('任务操作',document.querySelector('.na-project-compact-toolbar'));await pause();
  const projectActions=document.querySelector('.na-page-host');
  out.repeatedProjectViewsAbsent=![...projectActions.querySelectorAll('button')].some(button=>/层级|甘特/.test(button.textContent));
@@ -101,18 +109,46 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
  const chooseMode=(value)=>{mode.value=value;mode.dispatchEvent(new Event('change',{bubbles:true}));};
  out.modes=[...mode.options].map(o=>o.value);
  out.modesFit=true;
- for(const value of out.modes) {chooseMode(value);await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;}
+ const surfaces={overview:'.na-project-overview',hierarchy:'.na-project-tree',board:'.na-project-board',plan:'.na-project-plan',gantt:'.na-gantt'};
+ out.modeSurfaces=[];
+ for(const value of out.modes) {chooseMode(value);await pause();const panel=document.querySelector('.na-app');out.modesFit&&=panel.scrollWidth<=panel.clientWidth;out.modeSurfaces.push(Boolean(document.querySelector(surfaces[value])));}
+
+ chooseMode('hierarchy');await pause();
+ const treeRows=()=>[...document.querySelectorAll('.na-project-tree__row')];
+ out.deepHierarchy=Math.max(...treeRows().map(row=>Number(row.getAttribute('aria-level'))))>=5;
+ const firstTreeRow=treeRows()[0];firstTreeRow.focus();firstTreeRow.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));await pause();
+ out.hierarchyKeyboardFocus=document.activeElement===treeRows()[1]&&getComputedStyle(document.activeElement).outlineStyle!=='none';
+ const stageRow=treeRows().find(row=>row.textContent.includes('准备阶段'));
+ const collapse=stageRow.querySelector('.na-task-card__actions button');const expandedCount=treeRows().length;collapse.click();await pause();const collapsedCount=treeRows().length;stageRow.querySelector('.na-task-card__actions button').click();await pause();
+ out.hierarchyCollapse=collapsedCount<expandedCount&&treeRows().length===expandedCount;
+ const movableRow=treeRows().find(row=>row.textContent.includes('Project action 0'));const beforeMove=treeRows().map(row=>row.textContent);movableRow.querySelector('.na-task-card__actions button').click();await pause();click('下移',document.querySelector('.na-page-host'));await pause();const afterMove=treeRows().map(row=>row.textContent);out.hierarchyMove=window.hierarchyMoves.length===1&&afterMove.indexOf(beforeMove.find(title=>title.includes('Project action 0')))>afterMove.indexOf(beforeMove.find(title=>title.includes('Project action 1')));click('返回',document.querySelector('.na-page-host'));await pause();
 
  chooseMode('board');await pause();
- out.singleBoardColumn=document.querySelectorAll('.na-project-board__column').length;
- const grouping=document.querySelector('#na-project-board-group-by');grouping.value='stage';grouping.dispatchEvent(new Event('change',{bubbles:true}));await pause();
- const pager=document.querySelector('.na-project-board__pager select');pager.value=String(pager.options.length-1);pager.dispatchEvent(new Event('change',{bubbles:true}));await pause();
+ const board=document.querySelector('.na-project-board__columns');const boardCards=[...document.querySelectorAll('.na-project-board__cards')];const boardScrollable=boardCards.find(node=>node.scrollHeight>node.clientHeight);
+ board.scrollLeft=board.clientWidth;if(boardScrollable)boardScrollable.scrollTop=40;await pause();
+ out.boardColumns=document.querySelectorAll('.na-project-board__column').length;
+ out.boardScroll=board.scrollWidth>board.clientWidth&&board.scrollLeft>0&&Boolean(boardScrollable&&boardScrollable.scrollTop>0);
+ const boardCanvas=document.querySelector('.na-project-canvas');const boardHeightRatio=board.getBoundingClientRect().height/boardCanvas.getBoundingClientRect().height;out.boardFillsHeight=boardHeightRatio>=0.7;
+ out.boardPagerAbsent=!document.querySelector('.na-project-board__pager');
+ document.querySelector('.na-project-board__header button').click();await pause();
+ const grouping=document.querySelector('#na-project-board-settings-group-by');grouping.value='stage';grouping.dispatchEvent(new Event('change',{bubbles:true}));await pause();click('应用',document.querySelector('.na-page-host'));await pause();
  const card=document.querySelector('.na-project-board__card');
  if(!card) throw Error('stage board has no action');
  click('任务操作',card);await pause();
  const destination=document.querySelector('.na-page-host select');const option=[...destination.options].find(option=>option.textContent==='准备阶段');destination.value=option.value;destination.dispatchEvent(new Event('change',{bubbles:true}));await pause();
  click('应用',document.querySelector('.na-page-host'));await pause();
  out.stageMove=window.boardMoves.length===1 && window.boardMoves[0].groupBy==='stage' && window.boardMoves[0].value==='20260910120000-stagexx';
+
+ chooseMode('gantt');await pause();
+ const gantt=document.querySelector('.na-gantt');const ganttViewport=document.querySelector('.na-gantt__viewport');const canvas=document.querySelector('.na-project-canvas');
+ out.ganttLongTitle=[...document.querySelectorAll('.na-gantt-bar')].some(node=>node.getAttribute('aria-label')?.includes('整理项目资料与跨团队交付清单'));
+ out.ganttUnscheduled=Boolean(document.querySelector('.na-gantt__unscheduled-label'));
+ ganttViewport.scrollLeft=120;ganttViewport.scrollTop=96;ganttViewport.dispatchEvent(new Event('scroll'));await pause();const savedGantt={left:ganttViewport.scrollLeft,top:ganttViewport.scrollTop};
+ const ganttHeightRatio=gantt.getBoundingClientRect().height/canvas.getBoundingClientRect().height;const ganttBottomGap=canvas.getBoundingClientRect().bottom-gantt.getBoundingClientRect().bottom;out.ganttFillsHeight=ganttHeightRatio>=0.7;
+ out.ganttBottomAligned=ganttBottomGap<=8;
+ chooseMode('plan');await pause();chooseMode('gantt');await pause();const restoredGantt=document.querySelector('.na-gantt__viewport');
+ out.ganttScrollRestored=restoredGantt.scrollLeft===savedGantt.left&&restoredGantt.scrollTop===savedGantt.top;
+ chooseMode('board');await pause();
 
  click('我的一天',nav());await pause();
  out.myDayHasAdd=!!document.querySelector('.na-myday-add');
@@ -176,19 +212,34 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
         });
         assert.deepEqual(result, {
             hasDesktopRail: false,
+            themeBackground: dark ? "#202124" : "#fff",
             allTasksNavigationIcon: "#iconList",
             allViewsNavigationIcon: "#iconLayoutGrid",
             allTasksHeader: "全部任务",
             projectShortcutAbsent: true,
-            catalogCount: 10,
+            catalogCount: 9,
             startsWithProjectList: true,
             projectDrilldown: true,
             projectHeaderOnly: true,
+            projectTitleSingleLine: true,
             repeatedProjectViewsAbsent: true,
             modes: ["overview", "hierarchy", "board", "plan", "gantt"],
             modesFit: true,
-            singleBoardColumn: 1,
+            modeSurfaces: [true, true, true, true, true],
+            deepHierarchy: true,
+            hierarchyKeyboardFocus: true,
+            hierarchyCollapse: true,
+            hierarchyMove: true,
+            boardColumns: 6,
+            boardScroll: true,
+            boardFillsHeight: true,
+            boardPagerAbsent: true,
             stageMove: true,
+            ganttFillsHeight: true,
+            ganttBottomAligned: true,
+            ganttScrollRestored: true,
+            ganttLongTitle: true,
+            ganttUnscheduled: true,
             scheduleEdited: true,
             myDayHasAdd: true,
             projectModeRestored: "board",

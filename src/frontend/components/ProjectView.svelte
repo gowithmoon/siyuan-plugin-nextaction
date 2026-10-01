@@ -1161,11 +1161,12 @@
             overflow: visible;
             padding: 10px;
         }
-        .na-project-canvas--gantt {
+        .na-project-workspace--compact .na-project-canvas--gantt {
             flex: 1 1 auto;
             height: auto;
             min-height: 0;
             overflow: hidden;
+            padding: 6px;
         }
     }
 </style>
