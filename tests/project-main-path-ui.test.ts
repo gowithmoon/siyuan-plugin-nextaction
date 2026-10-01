@@ -78,6 +78,12 @@ test("项目层级视图只保留缩进和任务卡片，不显示冗余上级�
 
     assert.doesNotMatch(hierarchy, /class="na-project-tree__controls"/);
     assert.doesNotMatch(hierarchy, /class="na-project-tree__parent"/);
+    assert.doesNotMatch(hierarchy, /na-project-tree__touch-actions/);
+    assert.match(hierarchy, /onContextMenu=\{handleTaskActions\}/);
+    assert.match(hierarchy, /class:na-project-tree--touch=\{workspace\?\.touch\}/);
+    assert.match(hierarchy, /na-project-tree--touch :global\(\.na-task-card__context\)/);
+    const card = source("../src/frontend/components/TaskCard.svelte");
+    assert.match(card, /tabIndex=\{managedFocus \? -1 : undefined\}[\s\S]*?symbol="iconMore"/);
 });
 
 test("移动端项目详情只保留标题栏视图选择并释放画布高度", () => {

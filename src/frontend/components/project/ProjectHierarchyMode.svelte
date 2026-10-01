@@ -3,7 +3,6 @@
     const workspace = useWorkspace();
     import { buildProjectTreeParentOptions, buildProjectTreeReorderIntent } from "../../utils/project-tree-operations";
     import NaPageHost from "../../ui/NaPageHost.svelte";
-    import NaIconButton from "../../ui/NaIconButton.svelte";
     import { tick } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
@@ -229,9 +228,24 @@
         dropTargetId = "";
         dropPosition = null;
     }
+
+    function handleTaskActions(task: TaskCacheEntry, event: MouseEvent) {
+        if (workspace?.compact && task.taskType !== "2" && onTaskReorder) {
+            event.preventDefault();
+            event.stopPropagation();
+            arrangingTask = task;
+            return;
+        }
+        onContextMenu(task, event);
+    }
 </script>
 
-<div class="na-project-tree" role="tree" aria-label={i18n?.projectViewHierarchy || "Project hierarchy"}>
+<div
+    class="na-project-tree"
+    class:na-project-tree--touch={workspace?.touch}
+    role="tree"
+    aria-label={i18n?.projectViewHierarchy || "Project hierarchy"}
+>
     {#if error}<div class="na-project-tree__error">
             <NaInlineNotice message={error} tone="error" />{#if retryOperation}<NaButton
                     size="sm"
@@ -272,7 +286,7 @@
                     onSelect={onSelectTask}
                     {onEdit}
                     {onStatusClick}
-                    {onContextMenu}
+                    onContextMenu={handleTaskActions}
                     {i18n}
                     hasChildren={row.hasChildren}
                     isCollapsed={Boolean(row.isCollapsed)}
@@ -281,15 +295,6 @@
                     isRoot={row.depth === 0}
                     managedFocus
                 />
-                {#if workspace?.compact && row.task.taskType !== "2" && onTaskReorder}
-                    <div class="na-project-tree__touch-actions">
-                        <NaIconButton
-                            symbol="iconMore"
-                            label={`${i18n.projectViewHierarchy}: ${row.task.title}`}
-                            onclick={() => (arrangingTask = row.task)}
-                        />
-                    </div>
-                {/if}
                 {#if editingTaskId === row.task.blockId}<form
                         class="na-project-tree__rename"
                         onsubmit={(event) => handleRenameSubmit(row.task, event)}
@@ -359,10 +364,6 @@
     .na-project-tree__arrange label {
         display: grid;
         gap: 8px;
-    }
-    .na-project-tree__touch-actions {
-        display: flex;
-        justify-content: flex-end;
     }
     .na-project-tree {
         display: flex;
@@ -436,6 +437,14 @@
     .na-project-tree__stage-progress {
         grid-column: 1 / -1;
         padding: 3px 8px 1px 34px;
+    }
+    .na-project-tree--touch :global(.na-task-card__context),
+    .na-project-tree--touch :global(.na-task-card__tags),
+    .na-project-tree--touch :global(.na-task-card__custom-field),
+    .na-project-tree--touch :global(.na-task-card__icon--repeat),
+    .na-project-tree--touch :global(.na-task-card__icon--review),
+    .na-project-tree--touch :global(.na-task-card__stats) {
+        display: none;
     }
     @container nextaction-app (max-width: 600px) {
         .na-project-tree__item {

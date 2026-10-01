@@ -443,6 +443,7 @@
                 />
             {/if}
             {#if workspace?.compact}<NaIconButton
+                    tabIndex={managedFocus ? -1 : undefined}
                     symbol="iconMore"
                     label={i18n.taskActions}
                     onclick={(event) => {
